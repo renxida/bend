@@ -266,6 +266,12 @@ impl DefNames {
 }
 
 impl Term {
+  fn to_string_app_head(&self, def_names: &DefNames) -> String {
+    match self {
+      Term::App { fun, arg } => format!("{} {}", fun.to_string_app_head(def_names), arg.to_string(def_names)),
+      _ => self.to_string(def_names),
+    }
+  }
   pub fn to_string(&self, def_names: &DefNames) -> String {
     match self {
       Term::Lam { nam, bod } => {
@@ -278,7 +284,9 @@ impl Term {
         format!("let {} = {}; {}", pat, val.to_string(def_names), nxt.to_string(def_names))
       }
       Term::Ref { def_id } => format!("{}", def_names.name(def_id).unwrap()),
-      Term::App { fun, arg } => format!("({} {})", fun.to_string(def_names), arg.to_string(def_names)),
+      Term::App { fun, arg } => {
+        format!("({} {})", fun.to_string_app_head(def_names), arg.to_string(def_names))
+      }
       Term::Match { scrutinee, arms } => {
         let arms =
           arms.iter().map(|(pat, term)| format!("{}: {}", pat, term.to_string(def_names))).join("; ");
