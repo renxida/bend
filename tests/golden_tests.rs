@@ -130,9 +130,9 @@ fn readback_lnet() {
     let compat_net = hvmc_to_net(&net, &DefId::from_internal);
     let (term, valid) = net_to_term_non_linear(&compat_net, &book, &Default::default());
     if valid {
-      Ok(term.to_string(&book.def_names))
+      Ok(term.to_string(&book))
     } else {
-      Ok(format!("Invalid readback:\n{}", term.to_string(&book.def_names)))
+      Ok(format!("Invalid readback:\n{}", term.to_string(&book)))
     }
   })
 }

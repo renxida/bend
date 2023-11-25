@@ -132,11 +132,9 @@ pub fn run_book(
       Some(|net| {
         let net = hvmc_to_net(&net, &|val| hvmc_name_to_id[&val]);
         let (res_term, valid_readback) = net_to_term_non_linear(&net, &book, &labels_to_tag);
-        println!(
-          "{}{}\n---------------------------------------",
-          if valid_readback { "" } else { "[invalid] " },
-          res_term.to_string(&book)
-        );
+        if valid_readback {
+          println!("{}\n---------------------------------------", res_term.to_string(&book));
+        }
       })
     } else {
       None

@@ -2,11 +2,8 @@ data List = (Cons x xs) | Nil
 
 List.Append = @x @y 
   match x {
-    Nil: y
     Cons: (Cons x.x (List.Append x.xs y))
+    Nil: y
   }
 
-L = (Cons 1 (Cons 2 Nil))
-M = (Cons 3 Nil)
-
-main = (List.Append L M)
+main = (List.Append (Cons 1 (Cons 2 Nil)) (Cons 3 Nil))

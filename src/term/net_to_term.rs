@@ -90,16 +90,15 @@ pub fn net_to_term_non_linear(net: &INet, book: &Book, labels_to_tag: &HashMap<u
         _ => unreachable!(),
       },
       Ref { def_id } => {
-        // if book.is_generated_def(def_id) {
-        //   let def = book.defs.get(&def_id).unwrap();
-        //   def.assert_no_pattern_matching_rules();
-        //   let mut term = def.rules[0].body.clone();
-        //   term.fix_names(&mut namegen.id_counter, book);
-
-        //   (term, true)
-        // } else {
-        (Term::Ref { def_id }, true)
-        // }
+        if book.is_generated_def(def_id) {
+          let def = book.defs.get(&def_id).unwrap();
+          def.assert_no_pattern_matching_rules();
+          let mut term = def.rules[0].body.clone();
+          term.fix_names(&mut namegen.id_counter, book);
+          (term, true)
+        } else {
+          (Term::Ref { def_id }, true)
+        }
       }
       // If we're visiting a fan node...
       Dup { lab } => match next.slot() {
@@ -172,6 +171,151 @@ pub fn net_to_term_non_linear(net: &INet, book: &Book, labels_to_tag: &HashMap<u
       },
     }
   }
+
+  fn resugar_adts(term: &mut Term, book: &Book, namegen: &mut NameGen) -> bool {
+    match term {
+      &mut Term::Lam { tag: Some(lab), .. } => {
+        let adt_name = &book.adt_labs_rev[&lab];
+        let adt = &book.adts[adt_name];
+        let mut cur = &mut *term;
+        let mut current_arm = None;
+        for ctr in &adt.ctrs {
+          while let Term::Ref { def_id } = cur {
+            let def = &book.defs[def_id];
+            def.assert_no_pattern_matching_rules();
+            *cur = def.rules[0].body.clone();
+            cur.fix_names(&mut namegen.id_counter, book);
+          }
+          match cur {
+            Term::Lam { tag, nam, bod } if tag == &Some(lab) => {
+              if let Some(nam) = nam {
+                if current_arm.is_some() {
+                  return false;
+                }
+                current_arm = Some((nam.clone(), ctr))
+              }
+              cur = &mut **bod;
+            }
+            _ => {
+              return false;
+            }
+          }
+        }
+        let Some(current_arm) = current_arm else {
+          return false;
+        };
+        let app = cur;
+        let mut cur = &mut *app;
+        for _ in current_arm.1.1 {
+          while let Term::Ref { def_id } = cur {
+            let def = &book.defs[def_id];
+            def.assert_no_pattern_matching_rules();
+            *cur = def.rules[0].body.clone();
+            cur.fix_names(&mut namegen.id_counter, book);
+          }
+          match cur {
+            Term::App { fun, .. } => {
+              cur = fun;
+            }
+            _ => {
+              return false;
+            }
+          }
+        }
+        match cur {
+          Term::Var { nam } if nam == &current_arm.0 => {}
+          _ => {
+            return false;
+          }
+        }
+        let Some(def_id) = book.def_names.def_id(current_arm.1.0) else {
+          return false;
+        };
+        *cur = Term::Ref { def_id };
+        let app = std::mem::replace(app, Term::Era);
+        *term = app;
+        resugar_adts(term, book, namegen)
+      }
+      &mut Term::App { tag: Some(lab), .. } => {
+        let adt_name = &book.adt_labs_rev[&lab];
+        let adt = &book.adts[adt_name];
+        let mut cur = &mut *term;
+        let mut arms = Vec::new();
+        for ctr in adt.ctrs.iter().rev() {
+          while let Term::Ref { def_id } = cur {
+            let def = &book.defs[def_id];
+            def.assert_no_pattern_matching_rules();
+            *cur = def.rules[0].body.clone();
+            cur.fix_names(&mut namegen.id_counter, book);
+          }
+          match cur {
+            Term::App { tag, fun, arg } if tag == &Some(lab) => {
+              let mut args = Vec::new();
+              let mut arm_term = &mut **arg;
+              for _ in ctr.1 {
+                while let Term::Ref { def_id } = arm_term {
+                  let def = &book.defs[def_id];
+                  def.assert_no_pattern_matching_rules();
+                  *arm_term = def.rules[0].body.clone();
+                  arm_term.fix_names(&mut namegen.id_counter, book);
+                }
+                if !matches!(arm_term, Term::Lam { tag: None, .. }) {
+                  let nam = namegen.new_unique();
+                  let body = std::mem::replace(arm_term, Term::Era);
+                  *arm_term = Term::Lam {
+                    tag: None,
+                    nam: Some(nam.clone()),
+                    bod: Box::new(Term::App {
+                      tag: None,
+                      fun: Box::new(body),
+                      arg: Box::new(Term::Var { nam }),
+                    }),
+                  }
+                }
+                match arm_term {
+                  Term::Lam { tag: None, nam, bod } => {
+                    args.push(match nam {
+                      Some(x) => RulePat::Var(x.clone()),
+                      None => RulePat::Var(Name::new("*")),
+                    });
+                    arm_term = &mut **bod;
+                  }
+                  _ => unreachable!(),
+                }
+              }
+              arms.push((RulePat::Ctr(ctr.0.clone(), args), arm_term));
+              cur = &mut **fun;
+            }
+            _ => return false,
+          }
+        }
+        let scrutinee = std::mem::replace(cur, Term::Era);
+        let arms = arms.into_iter().rev().map(|arm| (arm.0, std::mem::replace(arm.1, Term::Era))).collect();
+        *term = Term::Match { scrutinee: Box::new(scrutinee), arms };
+        resugar_adts(term, book, namegen)
+      }
+      Term::Match { scrutinee, arms } => {
+        if !resugar_adts(scrutinee, book, namegen) {
+          return false;
+        }
+        for (_, arm) in arms {
+          if !resugar_adts(arm, book, namegen) {
+            return false;
+          }
+        }
+        true
+      }
+      Term::App { tag: None, fun: fst, arg: snd }
+      | Term::Dup { val: fst, nxt: snd, .. }
+      | Term::Let { val: fst, nxt: snd, .. }
+      | Term::Sup { fst, snd }
+      | Term::Tup { fst, snd }
+      | Term::Opx { fst, snd, .. } => resugar_adts(fst, book, namegen) && resugar_adts(snd, book, namegen),
+      Term::Lam { tag: None, bod, .. } | Term::Chn { bod, .. } => resugar_adts(bod, book, namegen),
+      Term::Var { .. } | Term::Num { .. } | Term::Lnk { .. } | Term::Ref { .. } | Term::Era => true,
+    }
+  }
+
   // A hashmap linking ports to binder names. Those ports have names:
   // Port 1 of a con node (λ), ports 1 and 2 of a fan node (let).
   let mut namegen = NameGen::default();
@@ -206,6 +350,8 @@ pub fn net_to_term_non_linear(net: &INet, book: &Book, labels_to_tag: &HashMap<u
 
     valid = valid && val_valid;
   }
+
+  valid = valid && resugar_adts(&mut main, book, &mut namegen);
 
   (main, valid)
 }
@@ -373,6 +519,12 @@ impl NameGen {
     let var_use = net.enter_port(var_port);
     let var_kind = net.node(var_use.node()).kind;
     if let Era = var_kind { None } else { Some(self.var_name(var_port)) }
+  }
+
+  fn new_unique(&mut self) -> Name {
+    let id = self.id_counter;
+    self.id_counter += 1;
+    var_id_to_name(id)
   }
 }
 

@@ -279,50 +279,8 @@ impl Term {
   }
   pub fn to_string(&self, book: &Book) -> String {
     match self {
-      Term::Lam { tag: None, nam, bod } => {
+      Term::Lam { nam, bod, .. } => {
         format!("λ{} {}", nam.clone().unwrap_or(Name::new("*")), bod.to_string(book))
-      }
-      Term::Lam { tag: Some(lab), nam, bod } => {
-        // return format!("λ{} {}", nam.clone().unwrap_or(Name::new("*")), bod.to_string(book));
-        let adt_name = &book.adt_labs_rev[lab];
-        let adt = &book.adts[adt_name];
-        let mut term = self;
-        let mut current_arm = None;
-        for ctr in &adt.ctrs {
-          while let Term::Ref { def_id } = term {
-            term = &book.defs[def_id].rules[0].body;
-          }
-          match term {
-            Term::Lam { tag, nam, bod } => {
-              assert_eq!(tag, &Some(*lab));
-              if let Some(nam) = nam {
-                assert_eq!(current_arm, None);
-                current_arm = Some((nam.clone(), ctr))
-              }
-              term = &**bod;
-            }
-            _ => panic!("invalid adt"),
-          }
-        }
-        let current_arm = current_arm.expect("invalid adt");
-        let mut expr = "".to_string();
-        if current_arm.1.1.is_empty() {
-          return current_arm.1.0.to_string();
-        }
-        for _ in current_arm.1.1 {
-          while let Term::Ref { def_id } = term {
-            term = &book.defs[def_id].rules[0].body;
-          }
-          match term {
-            Term::App { fun, arg, .. } => {
-              expr = format!(" {}{}", arg.to_string(book), expr);
-              term = &**fun;
-            }
-            _ => panic!("invalid adt"),
-          }
-        }
-        // TODO: assert_eq!(term, Term::Var { nam: current_arm.0 });
-        format!("({}{})", current_arm.1.0, expr)
       }
       Term::Var { nam } => format!("{nam}"),
       Term::Chn { nam, bod } => format!("λ${} {}", nam, bod.to_string(book)),
