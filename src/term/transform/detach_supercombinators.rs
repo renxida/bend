@@ -82,7 +82,7 @@ impl Term {
   ) {
     fn go(term: &mut Term, depth: usize, term_info: &mut TermInfo) -> bool {
       match term {
-        Term::Lam { nam, bod } => {
+        Term::Lam { tag: _, nam, bod } => {
           let parent_scope = term_info.replace_scope(HashSet::new());
 
           let is_super = go(bod, depth + 1, term_info);
@@ -137,7 +137,7 @@ impl Term {
 
           is_super
         }
-        Term::App { fun: fst, arg: snd }
+        Term::App { fun: fst, arg: snd, .. }
         | Term::Sup { fst, snd, .. }
         | Term::Tup { fst, snd }
         | Term::Opx { fst, snd, .. } => {
@@ -156,7 +156,7 @@ impl Term {
   // We don't want to detach id function, since that's not a net gain in performance or space
   fn is_id(&self) -> bool {
     match self {
-      Term::Lam { nam: Some(lam_nam), bod: box Term::Var { nam: var_nam } } => lam_nam == var_nam,
+      Term::Lam { nam: Some(lam_nam), bod: box Term::Var { nam: var_nam }, .. } => lam_nam == var_nam,
       _ => false,
     }
   }

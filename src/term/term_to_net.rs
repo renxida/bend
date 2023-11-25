@@ -9,7 +9,10 @@ use hvmc::{
 };
 use std::collections::{hash_map::Entry, HashMap};
 
-pub fn book_to_nets(book: &Book, main: DefId) -> (HashMap<String, INet>, HashMap<DefId, Val>, HashMap<u32, Name>, Vec<Warning>) {
+pub fn book_to_nets(
+  book: &Book,
+  main: DefId,
+) -> (HashMap<String, INet>, HashMap<DefId, Val>, HashMap<u32, Name>, Vec<Warning>) {
   let mut warnings = Vec::new();
   let mut nets = HashMap::new();
   let mut id_to_hvmc_name = HashMap::new();
@@ -108,9 +111,8 @@ fn encode_term(
     // - 1: points to the lambda variable.
     // - 2: points to the lambda body.
     // core: (var_use bod)
-    Term::Lam { nam, bod } => {
-      let fun = inet.new_node(Con);
-
+    Term::Lam { tag, nam, bod } => {
+      let fun = inet.new_node(Con { lab: tag.unwrap_or(0) });
       push_scope(nam, Port(fun, 1), scope, vars);
       let bod = encode_term(inet, bod, Port(fun, 2), scope, vars, global_vars, label_generator);
       pop_scope(nam, Port(fun, 1), inet, scope);
@@ -120,7 +122,7 @@ fn encode_term(
     }
     // core: (var_use bod)
     Term::Chn { nam, bod } => {
-      let fun = inet.new_node(Con);
+      let fun = inet.new_node(Con { lab: 0 });
       global_vars.entry(nam.clone()).or_default().0 = Port(fun, 1);
       let bod = encode_term(inet, bod, Port(fun, 2), scope, vars, global_vars, label_generator);
       link_local(inet, Port(fun, 2), bod);
@@ -131,9 +133,8 @@ fn encode_term(
     // - 1: points to the function's argument.
     // - 2: points to where the application occurs.
     // core: & fun ~ (arg ret) (fun not necessarily main port)
-    Term::App { fun, arg } => {
-      let app = inet.new_node(Con);
-
+    Term::App { tag, fun, arg } => {
+      let app = inet.new_node(Con { lab: tag.unwrap_or(0) });
       let fun = encode_term(inet, fun, Port(app, 0), scope, vars, global_vars, label_generator);
       link_local(inet, Port(app, 0), fun);
 
@@ -151,7 +152,7 @@ fn encode_term(
 
       let (zero, succ) = native_match(arms.clone());
 
-      let sel = inet.new_node(Con);
+      let sel = inet.new_node(Con { lab: 0 });
       inet.link(Port(sel, 0), Port(if_, 1));
       let zero = encode_term(inet, &zero, Port(sel, 1), scope, vars, global_vars, label_generator);
       link_local(inet, Port(sel, 1), zero);
@@ -342,7 +343,7 @@ impl LabelGenerator {
           self.next += 1;
           self.labels_to_tag.insert(lab, tag.clone());
           *e.insert(lab)
-        },
+        }
       }
     } else {
       let lab = self.next;

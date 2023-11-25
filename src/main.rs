@@ -76,7 +76,7 @@ fn main() -> Result<(), String> {
     }
     Mode::Run => {
       let mem_size = args.mem / std::mem::size_of::<(hvmc::run::APtr, hvmc::run::APtr)>();
-      let (res_term, def_names, info) = run_book(book, mem_size, !args.single_core, args.debug)?;
+      let (res_term, book, info) = run_book(book, mem_size, !args.single_core, args.debug)?;
       let RunInfo { stats, valid_readback, net: lnet } = info;
       let total_rewrites = total_rewrites(&stats.rewrites) as f64;
       let rps = total_rewrites / stats.run_time / 1_000_000.0;
@@ -85,10 +85,10 @@ fn main() -> Result<(), String> {
       }
 
       if valid_readback {
-        println!("{}", res_term.to_string(&def_names));
+        println!("{}", res_term.to_string(&book));
       } else {
         println!("Invalid readback from inet.");
-        println!("Got:\n{}", res_term.to_string(&def_names));
+        println!("Got:\n{}", res_term.to_string(&book));
       }
 
       if args.stats {

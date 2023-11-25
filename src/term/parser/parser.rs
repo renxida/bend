@@ -133,7 +133,7 @@ where
     let lam = just(Token::Lambda)
       .ignore_then(name_or_era())
       .then(term.clone())
-      .map(|(name, body)| Term::Lam { nam: name, bod: Box::new(body) })
+      .map(|(name, body)| Term::Lam { tag: None, nam: name, bod: Box::new(body) })
       .boxed();
 
     // λ$x body
@@ -227,7 +227,11 @@ where
     // (f arg1 arg2 ...)
     let app = term
       .clone()
-      .foldl(term.clone().repeated(), |fun, arg| Term::App { fun: Box::new(fun), arg: Box::new(arg) })
+      .foldl(term.clone().repeated(), |fun, arg| Term::App {
+        tag: None,
+        fun: Box::new(fun),
+        arg: Box::new(arg),
+      })
       .delimited_by(just(Token::LParen), just(Token::RParen))
       .boxed();
 
@@ -358,6 +362,9 @@ where
         TopLevel::Adt((nam, adt)) => {
           if !book.adts.contains_key(&nam) {
             book.adts.insert(nam.clone(), adt.clone());
+            let lab = (book.adt_labs.len() + 2) as _;
+            book.adt_labs.insert(nam.clone(), lab);
+            book.adt_labs_rev.insert(lab, nam.clone());
             for (ctr, _) in adt.ctrs {
               if let Entry::Vacant(e) = book.ctrs.entry(ctr) {
                 e.insert(nam.clone());

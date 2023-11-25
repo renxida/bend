@@ -29,7 +29,9 @@ pub enum NodeKind {
   /// Erasure nodes
   Era,
   /// Lambdas and applications
-  Con,
+  Con {
+    lab: Lab,
+  },
   Tup,
   Dup {
     lab: Lab,

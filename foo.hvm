@@ -1,0 +1,12 @@
+
+
+Cons = @h @t @c @* (c h t)
+Nil = @* @n n
+
+map = @list
+  (list
+    @list.head @list.tail @f (Cons (f list.head) (map list.tail f))
+    @* Nil
+  )
+
+main = (map (Cons 1 (Cons 2 (Cons 3 Nil))) (@x (x, x)))

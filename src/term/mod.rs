@@ -1,4 +1,4 @@
-use hvmc::run::Val;
+use hvmc::run::{Lab, Val};
 use indexmap::{IndexMap, IndexSet};
 use itertools::Itertools;
 use shrinkwraprs::Shrinkwrap;
@@ -14,7 +14,6 @@ pub mod parser;
 pub mod term_to_net;
 pub mod transform;
 
-pub use net_to_term::net_to_term_linear;
 pub use term_to_net::{book_to_nets, term_to_compat_net};
 
 /// The representation of a program.
@@ -28,6 +27,8 @@ pub struct Book {
 
   /// The algebraic datatypes defined by the program
   pub adts: BTreeMap<Name, Adt>,
+  pub adt_labs: BTreeMap<Name, Lab>,
+  pub adt_labs_rev: BTreeMap<Lab, Name>,
 
   /// To which type does each constructor belong to.
   pub ctrs: HashMap<Name, Name>,
@@ -70,6 +71,7 @@ pub enum RulePat {
 #[derive(Debug, Clone, Default)]
 pub enum Term {
   Lam {
+    tag: Option<Lab>,
     nam: Option<Name>,
     bod: Box<Term>,
   },
@@ -91,6 +93,7 @@ pub enum Term {
     nxt: Box<Term>,
   },
   App {
+    tag: Option<Lab>,
     fun: Box<Term>,
     arg: Box<Term>,
   },
@@ -266,53 +269,101 @@ impl DefNames {
 }
 
 impl Term {
-  fn to_string_app_head(&self, def_names: &DefNames) -> String {
+  fn to_string_app_head(&self, book: &Book) -> String {
     match self {
-      Term::App { fun, arg } => format!("{} {}", fun.to_string_app_head(def_names), arg.to_string(def_names)),
-      _ => self.to_string(def_names),
+      Term::App { tag: None, fun, arg } => {
+        format!("{} {}", fun.to_string_app_head(book), arg.to_string(book))
+      }
+      _ => self.to_string(book),
     }
   }
-  pub fn to_string(&self, def_names: &DefNames) -> String {
+  pub fn to_string(&self, book: &Book) -> String {
     match self {
-      Term::Lam { nam, bod } => {
-        format!("λ{} {}", nam.clone().unwrap_or(Name::new("*")), bod.to_string(def_names))
+      Term::Lam { tag: None, nam, bod } => {
+        format!("λ{} {}", nam.clone().unwrap_or(Name::new("*")), bod.to_string(book))
+      }
+      Term::Lam { tag: Some(lab), nam, bod } => {
+        // return format!("λ{} {}", nam.clone().unwrap_or(Name::new("*")), bod.to_string(book));
+        let adt_name = &book.adt_labs_rev[lab];
+        let adt = &book.adts[adt_name];
+        let mut term = self;
+        let mut current_arm = None;
+        for ctr in &adt.ctrs {
+          while let Term::Ref { def_id } = term {
+            term = &book.defs[def_id].rules[0].body;
+          }
+          match term {
+            Term::Lam { tag, nam, bod } => {
+              assert_eq!(tag, &Some(*lab));
+              if let Some(nam) = nam {
+                assert_eq!(current_arm, None);
+                current_arm = Some((nam.clone(), ctr))
+              }
+              term = &**bod;
+            }
+            _ => panic!("invalid adt"),
+          }
+        }
+        let current_arm = current_arm.expect("invalid adt");
+        let mut expr = "".to_string();
+        if current_arm.1.1.is_empty() {
+          return current_arm.1.0.to_string();
+        }
+        for _ in current_arm.1.1 {
+          while let Term::Ref { def_id } = term {
+            term = &book.defs[def_id].rules[0].body;
+          }
+          match term {
+            Term::App { fun, arg, .. } => {
+              expr = format!(" {}{}", arg.to_string(book), expr);
+              term = &**fun;
+            }
+            _ => panic!("invalid adt"),
+          }
+        }
+        // TODO: assert_eq!(term, Term::Var { nam: current_arm.0 });
+        format!("({}{})", current_arm.1.0, expr)
       }
       Term::Var { nam } => format!("{nam}"),
-      Term::Chn { nam, bod } => format!("λ${} {}", nam, bod.to_string(def_names)),
+      Term::Chn { nam, bod } => format!("λ${} {}", nam, bod.to_string(book)),
       Term::Lnk { nam } => format!("${nam}"),
       Term::Let { pat, val, nxt } => {
-        format!("let {} = {}; {}", pat, val.to_string(def_names), nxt.to_string(def_names))
+        format!("let {} = {}; {}", pat, val.to_string(book), nxt.to_string(book))
       }
-      Term::Ref { def_id } => format!("{}", def_names.name(def_id).unwrap()),
-      Term::App { fun, arg } => {
-        format!("({} {})", fun.to_string_app_head(def_names), arg.to_string(def_names))
+      Term::Ref { def_id } => format!("{}", book.def_names.name(def_id).unwrap()),
+      Term::App { tag: None, fun, arg } => {
+        format!("({} {})", fun.to_string_app_head(book), arg.to_string(book))
+      }
+      Term::App { fun, arg, .. } => {
+        format!("({} {})", fun.to_string_app_head(book), arg.to_string(book))
       }
       Term::Match { scrutinee, arms } => {
-        let arms =
-          arms.iter().map(|(pat, term)| format!("{}: {}", pat, term.to_string(def_names))).join("; ");
+        let arms = arms.iter().map(|(pat, term)| format!("{}: {}", pat, term.to_string(book))).join("; ");
 
-        format!("match {} {{ {} }}", scrutinee.to_string(def_names), arms,)
+        format!("match {} {{ {} }}", scrutinee.to_string(book), arms,)
       }
       Term::Dup { tag: _, fst, snd, val, nxt } => format!(
         "dup {} {} = {}; {}",
         fst.as_ref().map(|x| x.as_str()).unwrap_or("*"),
         snd.as_ref().map(|x| x.as_str()).unwrap_or("*"),
-        val.to_string(def_names),
-        nxt.to_string(def_names)
+        val.to_string(book),
+        nxt.to_string(book)
       ),
-      Term::Sup { tag, fst, snd } => format!("{{#{} {} {}}}", tag, fst.to_string(def_names), snd.to_string(def_names)),
+      Term::Sup { tag, fst, snd } => {
+        format!("{{#{} {} {}}}", tag, fst.to_string(book), snd.to_string(book))
+      }
       Term::Era => "*".to_string(),
       Term::Num { val } => format!("{val}"),
       Term::Opx { op, fst, snd } => {
-        format!("({} {} {})", op, fst.to_string(def_names), snd.to_string(def_names))
+        format!("({} {} {})", op, fst.to_string(book), snd.to_string(book))
       }
-      Term::Tup { fst, snd } => format!("({}, {})", fst.to_string(def_names), snd.to_string(def_names)),
+      Term::Tup { fst, snd } => format!("({}, {})", fst.to_string(book), snd.to_string(book)),
     }
   }
 
   /// Make a call term by folding args around a called function term with applications.
   pub fn call(called: Term, args: impl IntoIterator<Item = Term>) -> Self {
-    args.into_iter().fold(called, |acc, arg| Term::App { fun: Box::new(acc), arg: Box::new(arg) })
+    args.into_iter().fold(called, |acc, arg| Term::App { tag: None, fun: Box::new(acc), arg: Box::new(arg) })
   }
 
   /// Substitute the occurences of a variable in a term with the given term.
@@ -360,7 +411,7 @@ impl Term {
           }
         }
       }
-      Term::App { fun: fst, arg: snd }
+      Term::App { fun: fst, arg: snd, .. }
       | Term::Sup { fst, snd, .. }
       | Term::Tup { fst, snd }
       | Term::Opx { fst, snd, .. } => {
@@ -374,14 +425,14 @@ impl Term {
   /// Collects all the free variables that a term has
   pub fn free_vars(&self, free_vars: &mut IndexSet<Name>) {
     match self {
-      Term::Lam { nam: Some(nam), bod } => {
+      Term::Lam { nam: Some(nam), bod, .. } => {
         let mut new_scope = IndexSet::new();
         bod.free_vars(&mut new_scope);
         new_scope.remove(nam);
 
         free_vars.extend(new_scope);
       }
-      Term::Lam { nam: None, bod } => bod.free_vars(free_vars),
+      Term::Lam { nam: None, bod, .. } => bod.free_vars(free_vars),
       Term::Var { nam } => _ = free_vars.insert(nam.clone()),
       Term::Chn { bod, .. } => bod.free_vars(free_vars),
       Term::Lnk { .. } => {}
@@ -406,7 +457,7 @@ impl Term {
 
         free_vars.extend(new_scope);
       }
-      Term::App { fun: fst, arg: snd }
+      Term::App { fun: fst, arg: snd, .. }
       | Term::Tup { fst, snd }
       | Term::Sup { fst, snd, .. }
       | Term::Opx { op: _, fst, snd } => {
@@ -472,7 +523,7 @@ pub fn native_match(arms: Vec<(RulePat, Term)>) -> (Term, Term) {
   match &arms[..] {
     [(RulePat::Num(Zero), zero), (RulePat::Num(Succ(nam)), succ)] => {
       let zero = zero.clone();
-      let succ = Term::Lam { nam: nam.clone(), bod: Box::new(succ.clone()) };
+      let succ = Term::Lam { tag: None, nam: nam.clone(), bod: Box::new(succ.clone()) };
       (zero, succ)
     }
     [(RulePat::Num(Zero), zero), (RulePat::Num(Zero), succ)] => (zero.clone(), succ.clone()),
@@ -497,12 +548,12 @@ impl fmt::Display for LetPat {
 }
 
 impl Rule {
-  pub fn to_string(&self, def_id: &DefId, def_names: &DefNames) -> String {
+  pub fn to_string(&self, def_id: &DefId, book: &Book) -> String {
     format!(
       "({}{}) = {}",
-      def_names.name(def_id).unwrap(),
+      book.def_names.name(def_id).unwrap(),
       self.pats.iter().map(|x| format!(" {x}")).join(""),
-      self.body.to_string(def_names)
+      self.body.to_string(book)
     )
   }
 
@@ -512,8 +563,8 @@ impl Rule {
 }
 
 impl Definition {
-  pub fn to_string(&self, def_names: &DefNames) -> String {
-    self.rules.iter().map(|x| x.to_string(&self.def_id, def_names)).join("\n")
+  pub fn to_string(&self, book: &Book) -> String {
+    self.rules.iter().map(|x| x.to_string(&self.def_id, book)).join("\n")
   }
 
   pub fn arity(&self) -> usize {
@@ -527,7 +578,7 @@ impl Definition {
 
 impl fmt::Display for Book {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "{}", self.defs.values().map(|x| x.to_string(&self.def_names)).join("\n\n"))
+    write!(f, "{}", self.defs.values().map(|x| x.to_string(&self)).join("\n\n"))
   }
 }
 

@@ -113,7 +113,7 @@ pub fn run_book(
   mem_size: usize,
   parallel: bool,
   debug: bool,
-) -> Result<(Term, DefNames, RunInfo), String> {
+) -> Result<(Term, Book, RunInfo), String> {
   let CompileResult { core_book, hvmc_name_to_id, labels_to_tag, warnings } = compile_book(&mut book)?;
 
   if !warnings.is_empty() {
@@ -135,7 +135,7 @@ pub fn run_book(
         println!(
           "{}{}\n---------------------------------------",
           if valid_readback { "" } else { "[invalid] " },
-          res_term.to_string(&book.def_names)
+          res_term.to_string(&book)
         );
       })
     } else {
@@ -145,7 +145,7 @@ pub fn run_book(
   let net = hvmc_to_net(&res_lnet, &|val| hvmc_name_to_id[&val]);
   let (res_term, valid_readback) = net_to_term_non_linear(&net, &book, &labels_to_tag);
   let info = RunInfo { stats, valid_readback, net: res_lnet };
-  Ok((res_term, book.def_names, info))
+  Ok((res_term, book, info))
 }
 
 pub struct RunInfo {

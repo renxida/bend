@@ -40,7 +40,7 @@ pub fn check_uses<'a>(
 ) -> Result<(), String> {
   // TODO: Don't stop at the first error
   match term {
-    Term::Lam { nam, bod } => {
+    Term::Lam { nam, bod, .. } => {
       push_scope(nam.as_ref(), scope);
       check_uses(bod, scope, globals)?;
       pop_scope(nam.as_ref(), scope);
@@ -71,7 +71,7 @@ pub fn check_uses<'a>(
       pop_scope(fst.as_ref(), scope);
       pop_scope(snd.as_ref(), scope);
     }
-    Term::App { fun, arg } => {
+    Term::App { fun, arg, .. } => {
       check_uses(fun, scope, globals)?;
       check_uses(arg, scope, globals)?;
     }
