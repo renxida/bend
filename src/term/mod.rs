@@ -279,8 +279,16 @@ impl Term {
   }
   pub fn to_string(&self, book: &Book) -> String {
     match self {
-      Term::Lam { nam, bod, .. } => {
-        format!("λ{} {}", nam.clone().unwrap_or(Name::new("*")), bod.to_string(book))
+      Term::Lam { tag, nam, bod, .. } => {
+        format!(
+          "λ{}{} {}",
+          match tag {
+            Some(x) => format!("{} ", x),
+            _ => "".to_owned(),
+          },
+          nam.clone().unwrap_or(Name::new("*")),
+          bod.to_string(book)
+        )
       }
       Term::Var { nam } => format!("{nam}"),
       Term::Chn { nam, bod } => format!("λ${} {}", nam, bod.to_string(book)),

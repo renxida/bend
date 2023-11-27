@@ -90,15 +90,15 @@ pub fn net_to_term_non_linear(net: &INet, book: &Book, labels_to_tag: &HashMap<u
         _ => unreachable!(),
       },
       Ref { def_id } => {
-        if book.is_generated_def(def_id) {
-          let def = book.defs.get(&def_id).unwrap();
-          def.assert_no_pattern_matching_rules();
-          let mut term = def.rules[0].body.clone();
-          term.fix_names(&mut namegen.id_counter, book);
-          (term, true)
-        } else {
-          (Term::Ref { def_id }, true)
-        }
+        // if book.is_generated_def(def_id) {
+        //   let def = book.defs.get(&def_id).unwrap();
+        //   def.assert_no_pattern_matching_rules();
+        //   let mut term = def.rules[0].body.clone();
+        //   term.fix_names(&mut namegen.id_counter, book);
+        //   (term, true)
+        // } else {
+        (Term::Ref { def_id }, true)
+        // }
       }
       // If we're visiting a fan node...
       Dup { lab } => match next.slot() {

@@ -2,7 +2,7 @@
 
 use hvmc::{
   ast::{book_to_runtime, name_to_val, net_from_runtime, runtime_net_to_runtime_def, show_book, Net},
-  run::{self, Heap, Rewrites, Val},
+  run::{self, Heap, Rewrites, Tag, Val},
 };
 use hvmc_net::pre_reduce::pre_reduce_book;
 use net::{hvmc_to_net::hvmc_to_net, net_to_hvmc::nets_to_hvmc};
@@ -72,42 +72,6 @@ pub fn compile_book(book: &mut Book) -> Result<CompileResult, String> {
   Ok(CompileResult { core_book, hvmc_name_to_id, labels_to_tag, warnings })
 }
 
-pub fn run_compiled(
-  book: &hvmc::ast::Book,
-  mem_size: usize,
-  parallel: bool,
-  hook: Option<impl FnMut(Net)>,
-) -> (Net, RunStats) {
-  let runtime_book = book_to_runtime(book);
-  let heap = Heap::init(mem_size);
-  let mut root = hvmc::run::Net::new(&heap);
-  root.boot(name_to_val(DefNames::ENTRY_POINT) as run::Loc);
-
-  let start_time = Instant::now();
-
-  if let Some(mut hook) = hook {
-    root.expand(&runtime_book);
-    while root.rdex.len() > 0 {
-      hook(net_from_runtime(&root));
-      root.reduce(&runtime_book, 1);
-      root.expand(&runtime_book);
-    }
-  } else {
-    if parallel {
-      root.parallel_normal(&runtime_book);
-    } else {
-      root.normal(&runtime_book)
-    }
-  }
-
-  let elapsed = start_time.elapsed().as_secs_f64();
-
-  let net = net_from_runtime(&root);
-  let def = runtime_net_to_runtime_def(&root);
-  let stats = RunStats { rewrites: root.rwts, used: def.node.len(), run_time: elapsed };
-  (net, stats)
-}
-
 pub fn run_book(
   mut book: Book,
   mem_size: usize,
@@ -124,22 +88,77 @@ pub fn run_book(
     return Err("Could not run the code because of the previous warnings".into());
   }
 
-  let (res_lnet, stats) = run_compiled(
-    &core_book,
-    mem_size,
-    parallel,
+  let (res_lnet, stats) = {
+    let runtime_book = book_to_runtime(&core_book);
+    let heap = Heap::init(mem_size);
+    let mut root = hvmc::run::Net::new(&heap);
+    root.boot(name_to_val(DefNames::ENTRY_POINT) as run::Loc);
+
+    let start_time = Instant::now();
+
     if debug {
-      Some(|net| {
+      root.expand(&runtime_book);
+      let mut i = 0;
+      while root.rdex.len() > 0 {
+        let net = net_from_runtime(&root);
+        // if i > 4800 {
+        //   println!("{:#?}", net);
+        // }
         let net = hvmc_to_net(&net, &|val| hvmc_name_to_id[&val]);
         let (res_term, valid_readback) = net_to_term_non_linear(&net, &book, &labels_to_tag);
-        if valid_readback {
-          println!("{}\n---------------------------------------", res_term.to_string(&book));
+        // if valid_readback {
+        println!("{}", res_term.to_string(&book));
+        // }
+        fn tag_str(tag: Tag) -> &'static str {
+          match tag {
+            run::VR1 => "VR1",
+            run::VR2 => "VR2",
+            run::RD1 => "RD1",
+            run::RD2 => "RD2",
+            run::REF => "REF",
+            run::ERA => "ERA",
+            run::NUM => "NUM",
+            run::OP2 => "OP2",
+            run::OP1 => "OP1",
+            run::MAT => "MAT",
+            run::LAM => "LAM",
+            run::TUP => "TUP",
+            run::DUP => "DUP",
+            run::END => "END",
+            _ => "???",
+          }
         }
-      })
+        println!(
+          "// --------------------------------------- {} {}-{} ({}/{})",
+          i,
+          tag_str(root.rdex.last().unwrap().0.tag()),
+          tag_str(root.rdex.last().unwrap().1.tag()),
+          root.rdex.last().unwrap().0.lab(),
+          root.rdex.last().unwrap().1.lab(),
+        );
+        // for x in root.rdex.iter().flat_map(|x| [x.0, x.1]).filter(|x| x.is_ref()) {
+        //   dbg!(x.loc());
+        //   println!("{:?} {:?}", x.loc(), book.def_names.name(&hvmc_name_to_id[&(x.loc() as u64)]));
+        // }
+        root.reduce(&runtime_book, 1);
+        // root.expand(&runtime_book);
+        i += 1;
+      }
     } else {
-      None
-    },
-  );
+      if parallel {
+        root.parallel_normal(&runtime_book);
+      } else {
+        root.normal(&runtime_book)
+      }
+    }
+
+    let elapsed = start_time.elapsed().as_secs_f64();
+
+    let net = net_from_runtime(&root);
+    let def = runtime_net_to_runtime_def(&root);
+    let stats = RunStats { rewrites: root.rwts, used: def.node.len(), run_time: elapsed };
+    (net, stats)
+  };
   let net = hvmc_to_net(&res_lnet, &|val| hvmc_name_to_id[&val]);
   let (res_term, valid_readback) = net_to_term_non_linear(&net, &book, &labels_to_tag);
   let info = RunInfo { stats, valid_readback, net: res_lnet };
