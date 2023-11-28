@@ -34,7 +34,14 @@ pub fn net_to_term_non_linear(net: &INet, book: &Book, labels_to_tag: &HashMap<u
           let nam = namegen.decl_name(net, Port(node, 1));
           let prt = net.enter_port(Port(node, 2));
           let (bod, valid) = reader(net, prt, namegen, dup_scope, tup_scope, labels_to_tag, book);
-          (Term::Lam { tag: if lab == 0 { None } else { Some(lab) }, nam, bod: Box::new(bod) }, valid)
+          (
+            Term::Lam {
+              tag: if lab == 0 { None } else { Some(labels_to_tag[&lab].clone()) },
+              nam,
+              bod: Box::new(bod),
+            },
+            valid,
+          )
         }
         // If we're visiting a port 1, then it is a variable.
         1 => (Term::Var { nam: namegen.var_name(next) }, true),
@@ -47,7 +54,7 @@ pub fn net_to_term_non_linear(net: &INet, book: &Book, labels_to_tag: &HashMap<u
           let valid = fun_valid && arg_valid;
           (
             Term::App {
-              tag: if lab == 0 { None } else { Some(lab) },
+              tag: if lab == 0 { None } else { Some(labels_to_tag[&lab].clone()) },
               fun: Box::new(fun),
               arg: Box::new(arg),
             },
@@ -174,9 +181,10 @@ pub fn net_to_term_non_linear(net: &INet, book: &Book, labels_to_tag: &HashMap<u
 
   fn resugar_adts(term: &mut Term, book: &Book, namegen: &mut NameGen) -> bool {
     match term {
-      &mut Term::Lam { tag: Some(lab), .. } => {
-        let adt_name = &book.adt_labs_rev[&lab];
-        let adt = &book.adts[adt_name];
+      Term::Lam { tag: Some(adt_name), bod, .. } => {
+        let Some((adt_name, adt)) = book.adts.get_key_value(adt_name) else {
+          return resugar_adts(bod, book, namegen);
+        };
         let mut cur = &mut *term;
         let mut current_arm = None;
         for ctr in &adt.ctrs {
@@ -187,7 +195,7 @@ pub fn net_to_term_non_linear(net: &INet, book: &Book, labels_to_tag: &HashMap<u
             cur.fix_names(&mut namegen.id_counter, book);
           }
           match cur {
-            Term::Lam { tag, nam, bod } if tag == &Some(lab) => {
+            Term::Lam { tag: Some(tag), nam, bod } if &*tag == adt_name => {
               if let Some(nam) = nam {
                 if current_arm.is_some() {
                   return false;
@@ -246,9 +254,10 @@ pub fn net_to_term_non_linear(net: &INet, book: &Book, labels_to_tag: &HashMap<u
         }
         resugar_adts(term, book, namegen)
       }
-      &mut Term::App { tag: Some(lab), .. } => {
-        let adt_name = &book.adt_labs_rev[&lab];
-        let adt = &book.adts[adt_name];
+      Term::App { tag: Some(adt_name), fun, arg } => {
+        let Some((adt_name, adt)) = book.adts.get_key_value(adt_name) else {
+          return resugar_adts(fun, book, namegen) && resugar_adts(arg, book, namegen);
+        };
         let mut cur = &mut *term;
         let mut arms = Vec::new();
         for ctr in adt.ctrs.iter().rev() {
@@ -259,7 +268,7 @@ pub fn net_to_term_non_linear(net: &INet, book: &Book, labels_to_tag: &HashMap<u
             cur.fix_names(&mut namegen.id_counter, book);
           }
           match cur {
-            Term::App { tag, fun, arg } if tag == &Some(lab) => {
+            Term::App { tag: Some(tag), fun, arg } if &*tag == adt_name => {
               let mut args = Vec::new();
               let mut arm_term = &mut **arg;
               for _ in ctr.1 {
@@ -269,14 +278,14 @@ pub fn net_to_term_non_linear(net: &INet, book: &Book, labels_to_tag: &HashMap<u
                   *arm_term = def.rules[0].body.clone();
                   arm_term.fix_names(&mut namegen.id_counter, book);
                 }
-                if !matches!(arm_term, Term::Lam { tag: Some(l), .. } if *l == lab) {
+                if !matches!(arm_term, Term::Lam { tag: Some(tag), .. } if &*tag == adt_name) {
                   let nam = namegen.new_unique();
                   let body = std::mem::replace(arm_term, Term::Era);
                   *arm_term = Term::Lam {
-                    tag: Some(lab),
+                    tag: Some(adt_name.clone()),
                     nam: Some(nam.clone()),
                     bod: Box::new(Term::App {
-                      tag: Some(lab),
+                      tag: Some(adt_name.clone()),
                       fun: Box::new(body),
                       arg: Box::new(Term::Var { nam }),
                     }),

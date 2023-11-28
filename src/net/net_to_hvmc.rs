@@ -1,4 +1,4 @@
-use super::{INet, NodeId, NodeKind, Port, BASE_DUP_HVMC_LABEL, ROOT};
+use super::{INet, NodeId, NodeKind, Port, ROOT};
 use crate::term::{var_id_to_name, DefId};
 use hvmc::{
   ast::{Book, Net, Tree},

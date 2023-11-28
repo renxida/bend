@@ -88,7 +88,7 @@ pub fn term_to_compat_net(term: &Term, label_generator: &mut LabelGenerator) -> 
     link_local(&mut inet, ROOT, main);
   }
 
-  (inet, label_generator.next)
+  (inet, label_generator.last)
 }
 
 /// Adds a subterm connected to `up` to the `inet`.
@@ -112,7 +112,12 @@ fn encode_term(
     // - 2: points to the lambda body.
     // core: (var_use bod)
     Term::Lam { tag, nam, bod } => {
-      let fun = inet.new_node(Con { lab: tag.unwrap_or(0) });
+      let fun = inet.new_node(Con {
+        lab: match tag {
+          Some(x) => label_generator.generate(Some(x)),
+          None => 0,
+        },
+      });
       push_scope(nam, Port(fun, 1), scope, vars);
       let bod = encode_term(inet, bod, Port(fun, 2), scope, vars, global_vars, label_generator);
       pop_scope(nam, Port(fun, 1), inet, scope);
@@ -134,7 +139,12 @@ fn encode_term(
     // - 2: points to where the application occurs.
     // core: & fun ~ (arg ret) (fun not necessarily main port)
     Term::App { tag, fun, arg } => {
-      let app = inet.new_node(Con { lab: tag.unwrap_or(0) });
+      let app = inet.new_node(Con {
+        lab: match tag {
+          Some(x) => label_generator.generate(Some(x)),
+          None => 0,
+        },
+      });
       let fun = encode_term(inet, fun, Port(app, 0), scope, vars, global_vars, label_generator);
       link_local(inet, Port(app, 0), fun);
 
@@ -168,7 +178,7 @@ fn encode_term(
     // - 2: points to the occurrence of the second variable.
     // core: & val ~ {lab fst snd} (val not necessarily main port)
     Term::Dup { fst, snd, val, nxt, tag } => {
-      let lab = label_generator.generate(tag);
+      let lab = label_generator.generate(tag.as_ref());
       let dup = inet.new_node(Dup { lab });
 
       let val = encode_term(inet, val, Port(dup, 0), scope, vars, global_vars, label_generator);
@@ -224,7 +234,7 @@ fn encode_term(
     }
     Term::Let { .. } => unreachable!(), // Removed in earlier poss
     Term::Sup { tag, fst, snd } => {
-      let lab = label_generator.generate(&Some(tag.clone()));
+      let lab = label_generator.generate(Some(tag));
       let sup = inet.new_node(Dup { lab });
 
       let fst = encode_term(inet, fst, Port(sup, 1), scope, vars, global_vars, label_generator);
@@ -326,7 +336,7 @@ impl Op {
 
 #[derive(Default)]
 pub struct LabelGenerator {
-  next: u32,
+  last: u32,
   tagged_dups: HashMap<Name, u32>,
   labels_to_tag: HashMap<u32, Name>,
 }
@@ -334,21 +344,19 @@ pub struct LabelGenerator {
 impl LabelGenerator {
   // If some tag and new generate a new label, otherwise return the generated label.
   // If none use the implicit label counter.
-  fn generate(&mut self, tag: &Option<Name>) -> u32 {
+  fn generate(&mut self, tag: Option<&Name>) -> u32 {
     if let Some(tag) = tag {
       match self.tagged_dups.entry(tag.clone()) {
         Entry::Occupied(e) => *e.get(),
         Entry::Vacant(e) => {
-          let lab = self.next;
-          self.next += 1;
-          self.labels_to_tag.insert(lab, tag.clone());
-          *e.insert(lab)
+          self.last += 1;
+          self.labels_to_tag.insert(self.last, tag.clone());
+          *e.insert(self.last)
         }
       }
     } else {
-      let lab = self.next;
-      self.next += 1;
-      lab
+      self.last += 1;
+      self.last
     }
   }
 }

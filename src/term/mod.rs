@@ -1,4 +1,4 @@
-use hvmc::run::{Lab, Val};
+use hvmc::run::Val;
 use indexmap::{IndexMap, IndexSet};
 use itertools::Itertools;
 use shrinkwraprs::Shrinkwrap;
@@ -27,8 +27,6 @@ pub struct Book {
 
   /// The algebraic datatypes defined by the program
   pub adts: BTreeMap<Name, Adt>,
-  pub adt_labs: BTreeMap<Name, Lab>,
-  pub adt_labs_rev: BTreeMap<Lab, Name>,
 
   /// To which type does each constructor belong to.
   pub ctrs: HashMap<Name, Name>,
@@ -71,7 +69,7 @@ pub enum RulePat {
 #[derive(Debug, Clone, Default)]
 pub enum Term {
   Lam {
-    tag: Option<Lab>,
+    tag: Option<Name>,
     nam: Option<Name>,
     bod: Box<Term>,
   },
@@ -93,7 +91,7 @@ pub enum Term {
     nxt: Box<Term>,
   },
   App {
-    tag: Option<Lab>,
+    tag: Option<Name>,
     fun: Box<Term>,
     arg: Box<Term>,
   },
