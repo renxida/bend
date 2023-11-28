@@ -117,16 +117,8 @@ impl Term {
           let (adt_name, adt) = Term::check_matches(&rules, adts, ctrs)?;
 
           *match_count += 1;
-          *self = Term::match_adt_app(
-            nam,
-            adt,
-            arms,
-            adt_labs[&adt_name],
-            def_name,
-            def_names,
-            new_rules,
-            *match_count,
-          );
+          *self =
+            match_adt_app(nam, adt, arms, adt_labs[&adt_name], def_name, def_names, new_rules, *match_count);
         }
       }
 
@@ -235,7 +227,7 @@ fn match_adt_app(
           bod: Box::new(acc),
         });
         let body = args.iter().rev().fold(body, |acc, n| Term::Lam {
-          tag: None,
+          tag: Some(lab),
           nam: Some(binded(&nam, n)),
           bod: Box::new(acc),
         });

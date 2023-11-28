@@ -25,7 +25,7 @@ fn make_lam(lab: Lab, ctr_args: Vec<Name>, ctrs: Vec<Name>, ctr_name: &Name) -> 
   let ctr = Term::Var { nam: ctr_name.clone() };
 
   let app = ctr_args.iter().cloned().fold(ctr, |acc, nam| Term::App {
-    tag: None,
+    tag: Some(lab),
     fun: Box::new(acc),
     arg: Box::new(Term::Var { nam }),
   });

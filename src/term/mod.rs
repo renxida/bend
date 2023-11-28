@@ -283,7 +283,7 @@ impl Term {
         format!(
           "λ{}{} {}",
           match tag {
-            Some(x) => format!("{} ", x),
+            Some(x) => format!("#{} ", x),
             _ => "".to_owned(),
           },
           nam.clone().unwrap_or(Name::new("*")),
@@ -300,8 +300,16 @@ impl Term {
       Term::App { tag: None, fun, arg } => {
         format!("({} {})", fun.to_string_app_head(book), arg.to_string(book))
       }
-      Term::App { fun, arg, .. } => {
-        format!("({} {})", fun.to_string_app_head(book), arg.to_string(book))
+      Term::App { tag, fun, arg } => {
+        format!(
+          "({}{} {})",
+          match tag {
+            Some(x) => format!("#{} ", x),
+            _ => "".to_owned(),
+          },
+          fun.to_string_app_head(book),
+          arg.to_string(book)
+        )
       }
       Term::Match { scrutinee, arms } => {
         let arms = arms.iter().map(|(pat, term)| format!("{}: {}", pat, term.to_string(book))).join("; ");

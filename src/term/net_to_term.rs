@@ -234,6 +234,16 @@ pub fn net_to_term_non_linear(net: &INet, book: &Book, labels_to_tag: &HashMap<u
         *cur = Term::Ref { def_id };
         let app = std::mem::replace(app, Term::Era);
         *term = app;
+        let mut cur = &mut *term;
+        for _ in current_arm.1.1 {
+          match cur {
+            Term::App { tag, fun, .. } => {
+              *tag = None;
+              cur = fun;
+            }
+            _ => unreachable!(),
+          }
+        }
         resugar_adts(term, book, namegen)
       }
       &mut Term::App { tag: Some(lab), .. } => {
@@ -259,21 +269,21 @@ pub fn net_to_term_non_linear(net: &INet, book: &Book, labels_to_tag: &HashMap<u
                   *arm_term = def.rules[0].body.clone();
                   arm_term.fix_names(&mut namegen.id_counter, book);
                 }
-                if !matches!(arm_term, Term::Lam { tag: None, .. }) {
+                if !matches!(arm_term, Term::Lam { tag: Some(l), .. } if *l == lab) {
                   let nam = namegen.new_unique();
                   let body = std::mem::replace(arm_term, Term::Era);
                   *arm_term = Term::Lam {
-                    tag: None,
+                    tag: Some(lab),
                     nam: Some(nam.clone()),
                     bod: Box::new(Term::App {
-                      tag: None,
+                      tag: Some(lab),
                       fun: Box::new(body),
                       arg: Box::new(Term::Var { nam }),
                     }),
                   }
                 }
                 match arm_term {
-                  Term::Lam { tag: None, nam, bod } => {
+                  Term::Lam { nam, bod, .. } => {
                     args.push(match nam {
                       Some(x) => RulePat::Var(x.clone()),
                       None => RulePat::Var(Name::new("*")),
@@ -308,7 +318,7 @@ pub fn net_to_term_non_linear(net: &INet, book: &Book, labels_to_tag: &HashMap<u
       Term::App { tag: None, fun: fst, arg: snd }
       | Term::Dup { val: fst, nxt: snd, .. }
       | Term::Let { val: fst, nxt: snd, .. }
-      | Term::Sup { fst, snd }
+      | Term::Sup { fst, snd, .. }
       | Term::Tup { fst, snd }
       | Term::Opx { fst, snd, .. } => resugar_adts(fst, book, namegen) && resugar_adts(snd, book, namegen),
       Term::Lam { tag: None, bod, .. } | Term::Chn { bod, .. } => resugar_adts(bod, book, namegen),
@@ -352,6 +362,10 @@ pub fn net_to_term_non_linear(net: &INet, book: &Book, labels_to_tag: &HashMap<u
   }
 
   valid = valid && resugar_adts(&mut main, book, &mut namegen);
+
+  if valid {
+    main.fix_names(&mut 0, book)
+  }
 
   (main, valid)
 }
@@ -606,6 +620,12 @@ impl Term {
 
           term.fix_names(id_counter, book)
         }
+      }
+      Term::Let { pat: LetPat::Tup(a, b), val, nxt } => {
+        fix_name(a, id_counter, nxt);
+        fix_name(b, id_counter, nxt);
+        val.fix_names(id_counter, book);
+        nxt.fix_names(id_counter, book);
       }
       Term::Let { .. } => unreachable!(),
       Term::Var { .. } | Term::Lnk { .. } | Term::Num { .. } | Term::Era => {}
