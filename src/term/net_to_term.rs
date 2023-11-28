@@ -271,6 +271,7 @@ pub fn net_to_term_non_linear(net: &INet, book: &Book, labels_to_tag: &HashMap<u
             Term::App { tag: Some(tag), fun, arg } if &*tag == adt_name => {
               let mut args = Vec::new();
               let mut arm_term = &mut **arg;
+              let mut skip = 0;
               for _ in ctr.1 {
                 while let Term::Ref { def_id } = arm_term {
                   let def = &book.defs[def_id];
@@ -289,7 +290,8 @@ pub fn net_to_term_non_linear(net: &INet, book: &Book, labels_to_tag: &HashMap<u
                       fun: Box::new(body),
                       arg: Box::new(Term::Var { nam }),
                     }),
-                  }
+                  };
+                  skip += 1;
                 }
                 match arm_term {
                   Term::Lam { nam, bod, .. } => {
@@ -302,6 +304,17 @@ pub fn net_to_term_non_linear(net: &INet, book: &Book, labels_to_tag: &HashMap<u
                   _ => unreachable!(),
                 }
               }
+              {
+                let mut cur = &mut *arm_term;
+                for _ in 0 .. skip {
+                  match cur {
+                    Term::App { fun, .. } => cur = &mut *fun,
+                    _ => unreachable!(),
+                  }
+                }
+                resugar_adts(cur, book, namegen);
+              }
+
               arms.push((RulePat::Ctr(ctr.0.clone(), args), arm_term));
               cur = &mut **fun;
             }
@@ -311,7 +324,15 @@ pub fn net_to_term_non_linear(net: &INet, book: &Book, labels_to_tag: &HashMap<u
         let scrutinee = std::mem::replace(cur, Term::Era);
         let arms = arms.into_iter().rev().map(|arm| (arm.0, std::mem::replace(arm.1, Term::Era))).collect();
         *term = Term::Match { scrutinee: Box::new(scrutinee), arms };
-        resugar_adts(term, book, namegen)
+        let x = resugar_adts(
+          match term {
+            Term::Match { scrutinee, .. } => scrutinee,
+            _ => unreachable!(),
+          },
+          book,
+          namegen,
+        );
+        x
       }
       Term::Match { scrutinee, arms } => {
         if !resugar_adts(scrutinee, book, namegen) {
