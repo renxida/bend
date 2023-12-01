@@ -114,7 +114,7 @@ fn run_single_files() {
     // 1 million nodes for the test runtime. Smaller doesn't seem to make it any faster
     let (res, def_names, info) = run_book(book, 1 << 20, true, false)?;
     let res = if info.valid_readback {
-      res.to_string(&def_names)
+      res.to_string(&def_names).to_string()
     } else {
       format!("Invalid readback\n{}", res.to_string(&def_names))
     };
@@ -130,7 +130,7 @@ fn readback_lnet() {
     let compat_net = hvmc_to_net(&net, &DefId::from_internal);
     let (term, valid) = net_to_term_non_linear(&compat_net, &book, &Default::default());
     if valid {
-      Ok(term.to_string(&book))
+      Ok(term.to_string(&book).to_string())
     } else {
       Ok(format!("Invalid readback:\n{}", term.to_string(&book)))
     }

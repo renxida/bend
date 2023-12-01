@@ -205,7 +205,6 @@ checksum = "95505c38b4572b2d910cecb0281560f54b440a19336cbbcb27bf6ce6adc6f5a8"
 [[package]]
 name = "hvm-core"
 version = "0.2.7"
-source = "git+https://github.com/HigherOrderCO/hvm-core#1887f72bd361bc052aea0f9061f1bc1c2f49e5d3"
 
 [[package]]
 name = "hvm-lang"

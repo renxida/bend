@@ -1,0 +1,15 @@
+data Option = (Some val) | None
+
+foo = @x x
+
+and = @a @b
+  let (x, *) = (foo b);
+  match a {
+    Some: match x {
+      Some: (Some (a.val, x.val))
+      None: None
+    }
+    None: None
+  }
+
+main = and

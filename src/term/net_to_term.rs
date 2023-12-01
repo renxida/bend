@@ -126,7 +126,7 @@ pub fn net_to_term_non_linear(net: &INet, book: &Book, labels_to_tag: &HashMap<u
             let (fst, fst_valid) = reader(net, fst, namegen, dup_scope, tup_scope, labels_to_tag, book);
             let (snd, snd_valid) = reader(net, snd, namegen, dup_scope, tup_scope, labels_to_tag, book);
             let valid = fst_valid && snd_valid;
-            let tag = labels_to_tag.get(&lab).cloned().unwrap_or_else(|| Name::new("auto"));
+            let tag = labels_to_tag.get(&lab).cloned().unwrap_or_else(|| Name(format!("auto{}", lab)));
             (Term::Sup { tag, fst: Box::new(fst), snd: Box::new(snd) }, valid)
           }
         }
