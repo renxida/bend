@@ -1,15 +1,16 @@
 #![feature(box_patterns)]
+#![feature(return_position_impl_trait_in_trait)]
 
 use hvmc::{
-  ast::{book_to_runtime, name_to_val, net_from_runtime, runtime_net_to_runtime_def, show_book, Net},
-  run::{Heap, Rewrites},
+  ast::{show_book, Host, Net},
+  run::{Area, Rewrites, Net as RtNet},
 };
 use hvmc_net::{pre_reduce::pre_reduce_book, prune::prune_defs};
 use net::{hvmc_to_net::hvmc_to_net, net_to_hvmc::nets_to_hvmc};
 use std::time::Instant;
 use term::{
   book_to_nets, net_to_term,
-  term_to_net::{HvmcNames, Labels},
+  term_to_net::{Labels},
   Book, DefId, DefNames, ReadbackError, Term,
 };
 
@@ -27,11 +28,11 @@ pub fn check_book(mut book: Book) -> Result<(), String> {
 
 pub fn compile_book(book: &mut Book, opt_level: OptimizationLevel) -> Result<CompileResult, String> {
   let main = desugar_book(book, opt_level)?;
-  let (nets, hvmc_names, labels) = book_to_nets(book, main);
-  let mut core_book = nets_to_hvmc(nets, &hvmc_names)?;
+  let (nets, labels) = book_to_nets(book, main);
+  let mut core_book = nets_to_hvmc(nets)?;
   pre_reduce_book(&mut core_book, opt_level >= OptimizationLevel::Heavy)?;
   prune_defs(&mut core_book);
-  Ok(CompileResult { core_book, hvmc_names, labels, warnings: vec![] })
+  Ok(CompileResult { core_book, labels, warnings: vec![] })
 }
 
 pub fn desugar_book(book: &mut Book, opt_level: OptimizationLevel) -> Result<DefId, String> {
@@ -49,7 +50,7 @@ pub fn desugar_book(book: &mut Book, opt_level: OptimizationLevel) -> Result<Def
   }
   book.detach_supercombinators();
   book.simplify_ref_to_ref()?;
-  book.prune(main);
+  book.prune(&main);
   Ok(main)
 }
 
@@ -74,7 +75,7 @@ pub fn run_book(
   linear: bool,
   opt_level: OptimizationLevel,
 ) -> Result<(Term, DefNames, RunInfo), String> {
-  let CompileResult { core_book, hvmc_names, labels, warnings } = compile_book(&mut book, opt_level)?;
+  let CompileResult { core_book, labels, warnings } = compile_book(&mut book, opt_level)?;
 
   if !warnings.is_empty() {
     for warn in warnings {
@@ -83,8 +84,8 @@ pub fn run_book(
     return Err("Could not run the code because of the previous warnings".into());
   }
 
-  fn debug_hook(net: &Net, book: &Book, hvmc_names: &HvmcNames, labels: &Labels, linear: bool) {
-    let net = hvmc_to_net(net, &|id| hvmc_names.hvmc_name_to_id[&id]);
+  fn debug_hook(net: &Net, book: &Book, labels: &Labels, linear: bool) {
+    let net = hvmc_to_net(net);
     let (res_term, errors) = net_to_term(&net, book, labels, linear);
     println!(
       "{}{}\n---------------------------------------",
@@ -93,10 +94,10 @@ pub fn run_book(
     );
   }
   let debug_hook =
-    if debug { Some(|net: &_| debug_hook(net, &book, &hvmc_names, &labels, linear)) } else { None };
+    if debug { Some(|net: &_| debug_hook(net, &book, &labels, linear)) } else { None };
 
   let (res_lnet, stats) = run_compiled(&core_book, mem_size, parallel, debug_hook);
-  let net = hvmc_to_net(&res_lnet, &|id| hvmc_names.hvmc_name_to_id[&id]);
+  let net = hvmc_to_net(&res_lnet);
   let (res_term, readback_errors) = net_to_term(&net, &book, &labels, linear);
   let info = RunInfo { stats, readback_errors, net: res_lnet };
   Ok((res_term, book.def_names, info))
@@ -108,31 +109,35 @@ pub fn run_compiled(
   parallel: bool,
   hook: Option<impl FnMut(&Net)>,
 ) -> (Net, RunStats) {
-  let runtime_book = book_to_runtime(book);
-  let heap = Heap::init(mem_size);
-  let mut root = hvmc::run::Net::new(&heap);
-  root.boot(name_to_val(DefNames::ENTRY_POINT));
+  let host = Host::new(book);
+  let heap = RtNet::init_heap(mem_size);
+  let mut root = RtNet::new(&heap);
+  // Expect won't be reached because there's
+  // a pass that checks this.
+  root.boot(host.defs.get(DefNames::ENTRY_POINT).expect("No main function."));
 
   let start_time = Instant::now();
 
   if let Some(mut hook) = hook {
-    root.expand(&runtime_book);
+    root.expand();
     while !root.rdex.is_empty() {
-      hook(&net_from_runtime(&root));
-      root.reduce(&runtime_book, 1);
-      root.expand(&runtime_book);
+      hook(&host.readback(&root));
+      root.reduce(1);
+      root.expand();
     }
   } else if parallel {
-    root.parallel_normal(&runtime_book);
+    root.parallel_normal();
   } else {
-    root.normal(&runtime_book)
+    root.normal()
   }
 
   let elapsed = start_time.elapsed().as_secs_f64();
 
-  let net = net_from_runtime(&root);
-  let def = runtime_net_to_runtime_def(&root);
-  let stats = RunStats { rewrites: root.rwts, used: def.node.len(), run_time: elapsed };
+  let net = host.readback(&root);
+  // TODO I don't quite understand this code
+  // How would it be implemented in the new version?
+  // let def = runtime_net_to_runtime_def(&root);
+  let stats = RunStats { rewrites: root.rwts, used: 0, run_time: elapsed };
   (net, stats)
 }
 
@@ -156,7 +161,6 @@ impl From<usize> for OptimizationLevel {
 
 pub struct CompileResult {
   pub core_book: hvmc::ast::Book,
-  pub hvmc_names: HvmcNames,
   pub labels: Labels,
   pub warnings: Vec<Warning>,
 }

@@ -10,7 +10,7 @@ impl Book {
 
     for def in self.defs.values_mut() {
       for rule in def.rules.iter_mut() {
-        rule.body.detach_combinators(def.def_id, &mut self.def_names, &mut combinators);
+        rule.body.detach_combinators(&def.def_id, &mut self.def_names, &mut combinators);
       }
     }
 
@@ -64,11 +64,11 @@ impl<'d> TermInfo<'d> {
 
     let comb_id = self.def_names.insert(comb_name);
 
-    let comb_var = Term::Ref { def_id: comb_id };
+    let comb_var = Term::Ref { def_id: comb_id.clone() };
     let extracted_term = std::mem::replace(term, comb_var);
 
     let rules = vec![Rule { body: extracted_term, pats: Vec::new() }];
-    let rule = Definition { def_id: comb_id, rules };
+    let rule = Definition { def_id: comb_id.clone(), rules };
     self.combinators.insert(comb_id, rule);
   }
 }
@@ -76,7 +76,7 @@ impl<'d> TermInfo<'d> {
 impl Term {
   pub fn detach_combinators(
     &mut self,
-    rule_id: DefId,
+    rule_id: &DefId,
     def_names: &mut DefNames,
     combinators: &mut Combinators,
   ) {
@@ -148,7 +148,7 @@ impl Term {
       }
     }
 
-    go(self, 0, &mut TermInfo::new(rule_id, def_names, combinators));
+    go(self, 0, &mut TermInfo::new(rule_id.clone(), def_names, combinators));
   }
 
   // We don't want to detach id function, since that's not a net gain in performance or space

@@ -4,20 +4,12 @@ use crate::{
   term::MatchNum,
 };
 use hvmc::{
-  ast::{name_to_val, val_to_name},
-  run::{Loc, Val},
+  run::Loc,
 };
 use std::collections::{hash_map::Entry, HashMap};
 
-#[derive(Debug, Default)]
-pub struct HvmcNames {
-  pub id_to_hvmc_name: HashMap<DefId, Val>,
-  pub hvmc_name_to_id: HashMap<Val, DefId>,
-}
-
-pub fn book_to_nets(book: &Book, main: DefId) -> (HashMap<String, INet>, HvmcNames, Labels) {
+pub fn book_to_nets(book: &Book, main: DefId) -> (HashMap<String, INet>, Labels) {
   let mut nets = HashMap::new();
-  let mut hvmc_names = HvmcNames::default();
   let mut labels = Labels::default();
 
   for def in book.defs.values() {
@@ -27,12 +19,9 @@ pub fn book_to_nets(book: &Book, main: DefId) -> (HashMap<String, INet>, HvmcNam
       let name = if def.def_id == main {
         DefNames::ENTRY_POINT.to_string()
       } else {
-        def_id_to_hvmc_name(book, def.def_id, &nets)
+        def_id_to_hvmc_name(book, &def.def_id, &nets)
       };
 
-      let val = name_to_val(&name);
-      hvmc_names.id_to_hvmc_name.insert(def.def_id, val);
-      hvmc_names.hvmc_name_to_id.insert(val, def.def_id);
       nets.insert(name, net);
     }
   }
@@ -40,7 +29,7 @@ pub fn book_to_nets(book: &Book, main: DefId) -> (HashMap<String, INet>, HvmcNam
   labels.con.finish();
   labels.dup.finish();
 
-  (nets, hvmc_names, labels)
+  (nets, labels)
 }
 
 /// Converts rules names to unique names compatible with hvm-core:
@@ -48,7 +37,7 @@ pub fn book_to_nets(book: &Book, main: DefId) -> (HashMap<String, INet>, HvmcNam
 ///   If not: Truncates the rule name into 4 chars
 /// Them checks if the given hashmap already contains the resulted name,
 /// if it does, falls back into converting its DefId and succeeding ones until a unique name is found.
-fn def_id_to_hvmc_name(book: &Book, def_id: DefId, nets: &HashMap<String, INet>) -> String {
+fn def_id_to_hvmc_name(book: &Book, def_id: &DefId, nets: &HashMap<String, INet>) -> String {
   fn truncate(s: &str, max_chars: usize) -> &str {
     match s.char_indices().nth(max_chars) {
       None => s,
@@ -56,15 +45,15 @@ fn def_id_to_hvmc_name(book: &Book, def_id: DefId, nets: &HashMap<String, INet>)
     }
   }
 
-  fn gen_unique_name(def_id: DefId, nets: &HashMap<String, INet>) -> String {
-    let name = val_to_name(def_id.to_internal());
-    if nets.contains_key(&name) { gen_unique_name(DefId(def_id.0 + 1), nets) } else { name }
+  fn gen_unique_name(def_id: &DefId, nets: &HashMap<String, INet>) -> String {
+    // TODO obviously quite inefficient
+    if nets.contains_key(&def_id.0) { gen_unique_name(&DefId(def_id.clone().0+ "_"), nets) } else { def_id.0.clone() }
   }
 
   if book.is_generated_def(def_id) {
     gen_unique_name(def_id, nets)
   } else {
-    let Name(name) = book.def_names.name(&def_id).unwrap();
+    let Name(name) = book.def_names.name(def_id).unwrap();
     let name = truncate(name, 10);
     if !(nets.contains_key(name) || name.eq(DefNames::ENTRY_POINT)) {
       name.to_owned()
@@ -119,7 +108,7 @@ impl<'a> EncodeTermState<'a> {
       // - 2: points to the lambda body.
       // core: (var_use bod)
       Term::Lam { tag, nam, bod } => {
-        let fun = self.inet.new_node(Con { lab: self.labels.con.generate(tag) });
+        let fun = self.inet.new_node(Con { lab: self.labels.con.generate(tag).map(|x| x as u16) });
 
         self.push_scope(nam, Port(fun, 1));
         let bod = self.encode_term(bod, Port(fun, 2));
@@ -130,7 +119,7 @@ impl<'a> EncodeTermState<'a> {
       }
       // core: (var_use bod)
       Term::Chn { tag, nam, bod } => {
-        let fun = self.inet.new_node(Con { lab: self.labels.con.generate(tag) });
+        let fun = self.inet.new_node(Con { lab: self.labels.con.generate(tag).map(|x| x as u16) });
         self.global_vars.entry(nam.clone()).or_default().0 = Port(fun, 1);
         let bod = self.encode_term(bod, Port(fun, 2));
         self.link_local(Port(fun, 2), bod);
@@ -142,7 +131,7 @@ impl<'a> EncodeTermState<'a> {
       // - 2: points to where the application occurs.
       // core: & fun ~ (arg ret) (fun not necessarily main port)
       Term::App { tag, fun, arg } => {
-        let app = self.inet.new_node(Con { lab: self.labels.con.generate(tag) });
+        let app = self.inet.new_node(Con { lab: self.labels.con.generate(tag).map(|x| x as u16) });
 
         let fun = self.encode_term(fun, Port(app, 0));
         self.link_local(Port(app, 0), fun);
@@ -180,7 +169,7 @@ impl<'a> EncodeTermState<'a> {
       // - 2: points to the occurrence of the second variable.
       // core: & val ~ {lab fst snd} (val not necessarily main port)
       Term::Dup { fst, snd, val, nxt, tag } => {
-        let dup = self.inet.new_node(Dup { lab: self.labels.dup.generate(tag).unwrap() });
+        let dup = self.inet.new_node(Dup { lab: self.labels.dup.generate(tag).unwrap() as u16 });
 
         let val = self.encode_term(val, Port(dup, 0));
         self.link_local(Port(dup, 0), val);
@@ -214,7 +203,7 @@ impl<'a> EncodeTermState<'a> {
       }
       // core: @def_id
       Term::Ref { def_id } => {
-        let node = self.inet.new_node(Ref { def_id: *def_id });
+        let node = self.inet.new_node(Ref { def_id: def_id.clone() });
         self.inet.link(Port(node, 1), Port(node, 2));
         self.inet.link(up, Port(node, 0));
         Some(Port(node, 0))
@@ -235,7 +224,7 @@ impl<'a> EncodeTermState<'a> {
       }
       Term::Let { .. } => unreachable!(), // Removed in earlier poss
       Term::Sup { tag, fst, snd } => {
-        let sup = self.inet.new_node(Dup { lab: self.labels.dup.generate(tag).unwrap() });
+        let sup = self.inet.new_node(Dup { lab: self.labels.dup.generate(tag).unwrap() as u16 });
 
         let fst = self.encode_term(fst, Port(sup, 1));
         self.link_local(Port(sup, 1), fst);
@@ -310,25 +299,26 @@ impl<'a> EncodeTermState<'a> {
 }
 
 impl Op {
-  pub fn to_hvmc_label(self) -> Loc {
+  pub fn to_hvmc_label(self) -> hvmc::ops::Op {
+    use hvmc::ops::Op as RtOp;
     match self {
-      Op::ADD => 0x0,
-      Op::SUB => 0x1,
-      Op::MUL => 0x2,
-      Op::DIV => 0x3,
-      Op::MOD => 0x4,
-      Op::EQ => 0x5,
-      Op::NE => 0x6,
-      Op::LT => 0x7,
-      Op::GT => 0x8,
-      Op::LTE => 0x9,
-      Op::GTE => 0xa,
-      Op::AND => 0xb,
-      Op::OR => 0xc,
-      Op::XOR => 0xd,
-      Op::LSH => 0xe,
-      Op::RSH => 0xf,
-      Op::NOT => 0x10,
+      Op::ADD => RtOp::Add,
+      Op::SUB => RtOp::Sub,
+      Op::MUL => RtOp::Mul,
+      Op::DIV => RtOp::Div,
+      Op::MOD => RtOp::Mod,
+      Op::EQ => RtOp::Eq,
+      Op::NE => RtOp::Ne,
+      Op::LT => RtOp::Lt,
+      Op::GT => RtOp::Gt,
+      Op::LTE => RtOp::Lte,
+      Op::GTE => RtOp::Gte,
+      Op::AND => RtOp::And,
+      Op::OR => RtOp::Or,
+      Op::XOR => RtOp::Xor,
+      Op::LSH => RtOp::Lsh,
+      Op::RSH => RtOp::Rsh,
+      Op::NOT => RtOp::Not,
     }
   }
 }

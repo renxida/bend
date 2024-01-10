@@ -1,5 +1,3 @@
-use hvmc::run::Val;
-
 use crate::term::{Book, Name, Tag, Term};
 
 impl Book {
@@ -22,12 +20,12 @@ impl Term {
         let term = Term::Var { nam: Name::new("x") };
         let term = chars.rfold(term, |acc, char| {
           len += 1;
-          let char = Term::Num { val: Val::from(char) };
+          let char = Term::Num { val: char as u64 };
           Term::Tup { fst: Box::new(char), snd: Box::new(acc) }
         });
         let term = Term::Lam { tag: Tag::str(), nam: Some(Name::new("x")), bod: Box::new(term) };
 
-        let len = Term::Num { val: len as Val };
+        let len = Term::Num { val: len };
 
         *self = Term::Tup { fst: Box::new(len), snd: Box::new(term) };
       }

@@ -1,3 +1,5 @@
+#![feature(return_position_impl_trait_in_trait)]
+
 use clap::{Parser, ValueEnum};
 use hvmc::ast::{show_book, show_net};
 use hvml::{
@@ -95,7 +97,7 @@ fn main() {
         println!("{book}");
       }
       Mode::Run => {
-        let mem_size = args.mem / std::mem::size_of::<(hvmc::run::APtr, hvmc::run::APtr)>();
+        let mem_size = args.mem / std::mem::size_of::<hvmc::run::Node>();
         let (res_term, def_names, info) =
           run_book(book, mem_size, !args.single_core, args.debug, args.linear, args.opt_level)?;
         let RunInfo { stats, readback_errors, net: lnet } = info;

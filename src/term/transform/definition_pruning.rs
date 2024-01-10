@@ -6,19 +6,19 @@ type Definitions = HashSet<DefId>;
 
 impl Book {
   /// Removes all unused definitions starting from Main.
-  pub fn prune(&mut self, main: DefId) {
+  pub fn prune(&mut self, main: &DefId) {
     let mut used = Definitions::new();
 
-    let Definition { def_id, rules } = self.defs.get(&main).unwrap();
-    used.insert(*def_id);
+    let Definition { def_id, rules } = self.defs.get(main).unwrap();
+    used.insert(def_id.clone());
     for rule in rules {
       rule.body.find_used_definitions(&mut used, &self.defs);
     }
 
-    let ids = HashSet::from_iter(self.def_names.def_ids().copied());
+    let ids = HashSet::from_iter(self.def_names.def_ids().cloned());
     let unused = ids.difference(&used);
-    for &unused_id in unused {
-      self.remove_def(unused_id);
+    for unused_id in unused {
+      self.remove_def(unused_id.clone());
     }
   }
 }
@@ -31,7 +31,7 @@ impl Term {
     while let Some(term) = to_visit.pop() {
       match term {
         Term::Ref { def_id } => {
-          if used.insert(*def_id) {
+          if used.insert(def_id.clone()) {
             let Definition { rules, .. } = defs.get(def_id).unwrap();
             for rule in rules {
               to_visit.push(&rule.body);

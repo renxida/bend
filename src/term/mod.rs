@@ -1,4 +1,4 @@
-use hvmc::run::Val;
+use hvmc::ast::num_to_str;
 use indexmap::IndexMap;
 use shrinkwraprs::Shrinkwrap;
 use std::collections::{BTreeMap, HashMap};
@@ -34,7 +34,7 @@ pub struct Book {
 pub struct DefNames {
   id_to_name: HashMap<DefId, Name>,
   name_to_id: HashMap<Name, DefId>,
-  id_count: DefId,
+  id_count: u32,
 }
 
 /// A pattern matching function definition.
@@ -253,36 +253,15 @@ pub struct Adt {
 #[derive(Debug, PartialEq, Eq, Clone, Shrinkwrap, Hash, PartialOrd, Ord, Default)]
 pub struct Name(pub String);
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Shrinkwrap, Hash, PartialOrd, Ord, Default)]
-pub struct DefId(pub Val);
-
-pub fn var_id_to_name(mut var_id: Val) -> Name {
-  let mut name = String::new();
-  loop {
-    let c = (var_id % 26) as u8 + b'a';
-    name.push(c as char);
-    var_id /= 26;
-    if var_id == 0 {
-      break;
-    }
-  }
-  Name(name)
-}
+#[derive(Debug, PartialEq, Eq, Clone, Shrinkwrap, Hash, PartialOrd, Ord, Default)]
+pub struct DefId(pub String);
 
 impl Name {
   pub fn new(value: &str) -> Self {
     Name(value.to_string())
   }
-}
-
-impl DefId {
-  // TODO: We use this workaround because hvm-core's val_to_name function doesn't work with value 0
-  pub fn to_internal(self) -> Val {
-    *self + 1
-  }
-
-  pub fn from_internal(val: Val) -> Self {
-    Self(val - 1)
+  pub fn from_num(value: u64) -> Self {
+    Self(num_to_str(value as usize))
   }
 }
 
@@ -299,8 +278,8 @@ impl Book {
 
   pub fn insert_def(&mut self, name: Name, rules: Vec<Rule>) -> DefId {
     let def_id = self.def_names.insert(name);
-    let def = Definition { def_id, rules };
-    self.defs.insert(def_id, def);
+    let def = Definition { def_id: def_id.clone(), rules };
+    self.defs.insert(def_id.clone(), def);
     def_id
   }
 
@@ -324,7 +303,7 @@ impl DefNames {
   }
 
   pub fn def_id(&self, name: &Name) -> Option<DefId> {
-    self.name_to_id.get(name).copied()
+    self.name_to_id.get(name).cloned()
   }
 
   pub fn contains_name(&self, name: &Name) -> bool {
@@ -336,10 +315,10 @@ impl DefNames {
   }
 
   pub fn insert(&mut self, name: Name) -> DefId {
-    let def_id = self.id_count;
-    self.id_count.0 += 1;
-    self.id_to_name.insert(def_id, name.clone());
-    self.name_to_id.insert(name, def_id);
+    let def_id = DefId(hvmc::ast::num_to_str(self.id_count as usize));
+    self.id_count += 1;
+    self.id_to_name.insert(def_id.clone(), name.clone());
+    self.name_to_id.insert(name, def_id.clone());
     def_id
   }
 

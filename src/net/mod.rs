@@ -2,7 +2,7 @@ pub mod hvmc_to_net;
 pub mod net_to_hvmc;
 
 use crate::term::DefId;
-use hvmc::run::{Lab, Val};
+use hvmc::run::Lab;
 use NodeKind::*;
 
 #[derive(Clone, Debug)]
@@ -11,7 +11,7 @@ pub struct INet {
   nodes: Vec<Node>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct Node {
   pub main: Port,
   pub aux1: Port,
@@ -22,7 +22,7 @@ pub struct Node {
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub struct Port(pub NodeId, pub SlotId);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NodeKind {
   /// Root node
   Rot,
@@ -42,25 +42,25 @@ pub enum NodeKind {
   },
   /// Numbers
   Num {
-    val: Val,
+    val: u64,
   },
   /// Numeric operations
   Op2 {
-    opr: Lab,
+    opr: hvmc::ops::Op,
   },
   /// Pattern matching on numbers
   Mat,
 }
 
-pub type NodeId = Val;
-pub type SlotId = Val;
+pub type NodeId = u64;
+pub type SlotId = u64;
 
 /// The ROOT port is on the deadlocked root node at address 0.
 pub const ROOT: Port = Port(0, 1);
 pub const TAG_WIDTH: u32 = 4;
-pub const TAG: u32 = Val::BITS - TAG_WIDTH;
-pub const LABEL_MASK: Val = (1 << TAG) - 1;
-pub const TAG_MASK: Val = !LABEL_MASK;
+pub const TAG: u32 = u64::BITS - TAG_WIDTH;
+pub const LABEL_MASK: u64 = (1 << TAG) - 1;
+pub const TAG_MASK: u64 = !LABEL_MASK;
 
 impl INet {
   /// Create a new net, with a deadlocked root node.
@@ -78,7 +78,7 @@ impl INet {
 
   /// Returns a copy of a node.
   pub fn node(&self, node: NodeId) -> Node {
-    self.nodes[node as usize]
+    self.nodes[node as usize].clone()
   }
 
   /// Returns the value stored at a port, the port on the other side of the given one.

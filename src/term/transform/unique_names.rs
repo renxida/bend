@@ -1,7 +1,6 @@
 // Pass to give all variables in a definition unique names.
 
-use crate::term::{var_id_to_name, Book, Name, Pattern, Term};
-use hvmc::run::Val;
+use crate::term::{Book, Name, Pattern, Term};
 use std::collections::HashMap;
 
 impl Book {
@@ -22,13 +21,12 @@ impl Term {
   }
 }
 
-type VarId = Val;
 
 #[derive(Default)]
-struct UniqueNameScope(HashMap<Name, Vec<VarId>>);
+struct UniqueNameScope(HashMap<Name, Vec<u64>>);
 
 // Recursive implementation of unique names pass.
-fn unique_var_names(term: &mut Term, name_map: &mut UniqueNameScope, name_count: &mut VarId) {
+fn unique_var_names(term: &mut Term, name_map: &mut UniqueNameScope, name_count: &mut u64) {
   match term {
     // Terms that create names
     Term::Lam { nam, bod, .. } => {
@@ -87,7 +85,7 @@ fn unique_var_names(term: &mut Term, name_map: &mut UniqueNameScope, name_count:
 }
 
 impl UniqueNameScope {
-  fn push(&mut self, nam: Option<&Name>, name_count: &mut VarId) {
+  fn push(&mut self, nam: Option<&Name>, name_count: &mut u64) {
     if let Some(name) = nam {
       self.0.entry(name.clone()).or_default().push(*name_count);
       *name_count += 1;
@@ -100,7 +98,7 @@ impl UniqueNameScope {
       if self.0[name].is_empty() {
         self.0.remove(name);
       }
-      Some(var_id_to_name(new_name))
+      Some(Name::from_num(new_name))
     } else {
       None
     }
@@ -109,6 +107,6 @@ impl UniqueNameScope {
   fn use_var(&self, nam: &Name) -> Name {
     let vars = &self.0[nam];
     let var_id = *vars.last().unwrap();
-    var_id_to_name(var_id)
+    Name::from_num(var_id)
   }
 }

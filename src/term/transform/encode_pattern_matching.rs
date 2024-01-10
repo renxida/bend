@@ -5,12 +5,12 @@ use crate::term::{
 
 impl Book {
   pub fn encode_pattern_matching_functions(&mut self, def_types: &DefinitionTypes) {
-    for def_id in self.defs.keys().copied().collect::<Vec<_>>() {
+    for def_id in self.defs.keys().cloned().collect::<Vec<_>>() {
       let def_type = &def_types[&def_id];
 
       let is_matching_def = def_type.iter().any(|t| matches!(t, Type::Adt(_) | Type::Tup | Type::Num));
       if is_matching_def {
-        make_pattern_matching_def(self, def_id, def_type);
+        make_pattern_matching_def(self, &def_id, def_type);
       } else {
         // For functions with only one rule that doesnt pattern match,
         // we just move the variables from arg to body.
@@ -35,9 +35,9 @@ fn make_non_pattern_matching_def(book: &mut Book, def_id: DefId) {
 /// For function that do pattern match,
 ///  we break them into a tree of small matching functions
 ///  with the original rule bodies at the end.
-fn make_pattern_matching_def(book: &mut Book, def_id: DefId, def_type: &[Type]) {
-  let def_name = book.def_names.name(&def_id).unwrap().clone();
-  let def = book.defs.get_mut(&def_id).unwrap();
+fn make_pattern_matching_def(book: &mut Book, def_id: &DefId, def_type: &[Type]) {
+  let def_name = book.def_names.name(def_id).unwrap().clone();
+  let def = book.defs.get_mut(def_id).unwrap();
   let crnt_rules = (0 .. def.rules.len()).collect();
 
   // First create a definition for each rule body
@@ -93,12 +93,12 @@ fn make_rule_body(mut body: Term, pats: &[Pattern]) -> Term {
 fn make_pattern_matching_case(
   book: &mut Book,
   def_type: &[Type],
-  def_id: DefId,
+  def_id: &DefId,
   crnt_name: &Name,
   crnt_rules: Vec<usize>,
   match_path: Vec<Pattern>,
 ) {
-  let def = &book.defs[&def_id];
+  let def = &book.defs[def_id];
   // This is safe since we check exhaustiveness earlier.
   let fst_rule_idx = crnt_rules[0];
   let fst_rule = &def.rules[fst_rule_idx];
@@ -133,15 +133,15 @@ fn make_pattern_matching_case(
 /// Builds the function calling one of the original rule bodies.
 fn make_leaf_pattern_matching_case(
   book: &mut Book,
-  def_id: DefId,
+  def_id: &DefId,
   crnt_name: &Name,
   rule_idx: usize,
   match_path: Vec<Pattern>,
 ) {
-  let def_name = book.def_names.name(&def_id).unwrap();
+  let def_name = book.def_names.name(def_id).unwrap();
   let rule_def_name = make_rule_name(def_name, rule_idx);
   let rule_def_id = book.def_names.def_id(&rule_def_name).unwrap();
-  let rule = &book.defs[&def_id].rules[rule_idx];
+  let rule = &book.defs[def_id].rules[rule_idx];
 
   // The term we're building
   let mut term = Term::Ref { def_id: rule_def_id };
@@ -241,7 +241,7 @@ fn add_tagged_new_args(
 fn make_num_pattern_matching_case(
   book: &mut Book,
   def_type: &[Type],
-  def_id: DefId,
+  def_id: &DefId,
   crnt_name: &Name,
   crnt_rules: Vec<usize>,
   match_path: Vec<Pattern>,
@@ -266,7 +266,7 @@ fn make_num_pattern_matching_case(
   let arms = [Zero, Succ(None)]
     .into_iter()
     .map(|next_ctr| {
-      let def = &book.defs[&def_id];
+      let def = &book.defs[def_id];
       let crnt_name = make_next_fn_name(&next_ctr);
       let crnt_rules = filter_rules(&def.rules, &crnt_rules, match_path.len(), &next_ctr);
       let new_vars = match next_ctr {
@@ -299,7 +299,7 @@ fn make_num_pattern_matching_case(
 fn make_adt_pattern_matching_case(
   book: &mut Book,
   def_type: &[Type],
-  def_id: DefId,
+  def_id: &DefId,
   crnt_name: &Name,
   crnt_rules: Vec<usize>,
   match_path: Vec<Pattern>,
@@ -327,7 +327,7 @@ fn make_adt_pattern_matching_case(
   // First we create the subfunctions
   // TODO: We could group together functions with same arity that map to the same (default) case.
   for (next_ctr, next_ctr_args) in next_ctrs.iter() {
-    let def = &book.defs[&def_id];
+    let def = &book.defs[def_id];
     let crnt_name = make_next_fn_name(crnt_name, next_ctr);
     let crnt_rules = filter_rules(&def.rules, &crnt_rules, match_path.len(), next_ctr);
     let new_vars = Pattern::Ctr(
@@ -363,7 +363,7 @@ fn make_adt_pattern_matching_case(
 fn make_non_pattern_matching_case(
   book: &mut Book,
   def_type: &[Type],
-  def_id: DefId,
+  def_id: &DefId,
   crnt_name: &Name,
   crnt_rules: Vec<usize>,
   match_path: Vec<Pattern>,

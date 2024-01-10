@@ -25,12 +25,12 @@ impl Book {
         is_ref_to_ref = true;
       }
       if is_ref_to_ref {
-        ref_map.insert(*def_id, *ref_id);
+        ref_map.insert(def_id.clone(), ref_id.clone());
       }
     }
 
     // Substitute all the occurences of ref-to-ref.
-    for def_id in self.defs.keys().copied().collect::<Vec<_>>() {
+    for def_id in self.defs.keys().cloned().collect::<Vec<_>>() {
       let body = &mut self.defs.get_mut(&def_id).unwrap().rules[0].body;
       // Moving in and out so the borrow checker doesn't complain
       let mut subst_body = std::mem::take(body);
@@ -47,7 +47,7 @@ fn subst_ref_to_ref(term: &mut Term, ref_map: &HashMap<DefId, DefId>) {
   match term {
     Term::Ref { def_id } => {
       if let Some(target_id) = ref_map.get(def_id) {
-        *def_id = *target_id;
+        *def_id = target_id.clone();
       }
     }
     Term::Lam { bod, .. } | Term::Chn { bod, .. } => subst_ref_to_ref(bod, ref_map),

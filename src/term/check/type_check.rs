@@ -20,7 +20,7 @@ impl Book {
     let mut def_types = HashMap::new();
     for (def_id, def) in &self.defs {
       let def_type = def.infer_type(&self.ctrs)?;
-      def_types.insert(*def_id, def_type);
+      def_types.insert(def_id.clone(), def_type);
     }
     Ok(def_types)
   }

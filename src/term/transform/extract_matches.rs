@@ -187,8 +187,8 @@ fn match_to_def(
 
   let new_name = make_def_name(def_name, &Name::new("match"), match_count);
   let def_id = book.def_names.insert(new_name);
-  let def = Definition { def_id, rules };
-  book.new_defs.insert(def_id, def);
+  let def = Definition { def_id: def_id.clone(), rules };
+  book.new_defs.insert(def_id.clone(), def);
 
   let scrutinee_app = Term::App {
     tag: Tag::Static,

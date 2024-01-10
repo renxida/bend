@@ -4,10 +4,10 @@ use std::collections::{HashMap, HashSet};
 
 impl Book {
   pub fn flatten_rules(&mut self) {
-    for def_id in self.defs.keys().copied().collect_vec() {
+    for def_id in self.defs.keys().cloned().collect_vec() {
       let new_defs = flatten_def(&self.defs[&def_id], &mut self.def_names);
       for def in new_defs {
-        self.defs.insert(def.def_id, def);
+        self.defs.insert(def.def_id.clone(), def.clone());
       }
     }
   }

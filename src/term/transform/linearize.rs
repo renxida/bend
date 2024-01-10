@@ -1,5 +1,4 @@
 use crate::term::{Book, MatchNum, Name, Pattern, Tag, Term};
-use hvmc::run::Val;
 use std::collections::{hash_map::Entry, HashMap};
 
 /// Erases variables that weren't used, dups the ones that were used more than once.
@@ -32,7 +31,7 @@ impl Term {
   }
 }
 
-fn count_var_uses_in_term(term: &Term, uses: &mut HashMap<Name, Val>) {
+fn count_var_uses_in_term(term: &Term, uses: &mut HashMap<Name, u64>) {
   match term {
     // Var users
     Term::Var { nam } => {
@@ -88,7 +87,7 @@ fn used_var_counter(var_name: &Name) -> Name {
 fn term_with_bind_to_affine(
   term: &mut Term,
   nam: &mut Option<Name>,
-  var_uses: &mut HashMap<Name, Val>,
+  var_uses: &mut HashMap<Name, u64>,
   let_bodies: &mut HashMap<Name, Term>,
 ) {
   if let Some(nam_some) = nam {
@@ -110,7 +109,7 @@ fn term_with_bind_to_affine(
   term_to_affine(term, var_uses, let_bodies);
 }
 
-fn term_to_affine(term: &mut Term, var_uses: &mut HashMap<Name, Val>, let_bodies: &mut HashMap<Name, Term>) {
+fn term_to_affine(term: &mut Term, var_uses: &mut HashMap<Name, u64>, let_bodies: &mut HashMap<Name, Term>) {
   match term {
     Term::Lam { nam, bod, .. } => term_with_bind_to_affine(bod, nam, var_uses, let_bodies),
 
@@ -203,11 +202,11 @@ fn term_to_affine(term: &mut Term, var_uses: &mut HashMap<Name, Val>, let_bodies
   };
 }
 
-fn get_var_uses(nam: Option<&Name>, var_uses: &HashMap<Name, Val>) -> Val {
+fn get_var_uses(nam: Option<&Name>, var_uses: &HashMap<Name, u64>) -> u64 {
   if let Some(nam) = nam { *var_uses.get(nam).unwrap() } else { 0 }
 }
 
-fn make_dup_tree(nam: &Name, nxt: &mut Term, uses: Val, dup_body: Option<&mut Term>) {
+fn make_dup_tree(nam: &Name, nxt: &mut Term, uses: u64, dup_body: Option<&mut Term>) {
   // TODO: Is there a difference between a list of dups and a complete binary tree of dups
   // Creates this: "dup x1 x1_dup = body; dup x2 x2_dup = x1_dup; dup x3 x4 = x2_dup; nxt"
   for i in (1 .. uses).rev() {
@@ -230,7 +229,7 @@ fn make_dup_tree(nam: &Name, nxt: &mut Term, uses: Val, dup_body: Option<&mut Te
   }
 }
 
-fn duplicate_lam(nam: &mut Option<Name>, nxt: &mut Term, uses: Val) {
+fn duplicate_lam(nam: &mut Option<Name>, nxt: &mut Term, uses: u64) {
   match uses {
     0 => *nam = None,
     1 => *nam = Some(dup_name(nam.as_ref().unwrap(), 1)),
@@ -238,19 +237,19 @@ fn duplicate_lam(nam: &mut Option<Name>, nxt: &mut Term, uses: Val) {
   }
 }
 
-fn duplicate_let(nam: &Name, nxt: &mut Term, uses: Val, let_body: &mut Term) {
+fn duplicate_let(nam: &Name, nxt: &mut Term, uses: u64, let_body: &mut Term) {
   make_dup_tree(nam, nxt, uses, Some(let_body))
 }
 
-fn dup_name(nam: &Name, uses: Val) -> Name {
+fn dup_name(nam: &Name, uses: u64) -> Name {
   Name(format!("{nam}_{uses}"))
 }
 
-fn internal_dup_name(nam: &Name, uses: Val) -> Name {
+fn internal_dup_name(nam: &Name, uses: u64) -> Name {
   Name(format!("{}_dup", dup_name(nam, uses)))
 }
 
-fn add_var(nam: Option<&Name>, uses: &mut HashMap<Name, Val>) {
+fn add_var(nam: Option<&Name>, uses: &mut HashMap<Name, u64>) {
   if let Some(nam) = nam {
     uses.entry(nam.clone()).or_insert(0);
   }

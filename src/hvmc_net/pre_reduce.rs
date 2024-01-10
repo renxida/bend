@@ -3,10 +3,10 @@
 
 use crate::term::DefNames;
 use hvmc::{
-  ast::{book_from_runtime, name_to_val, net_from_runtime, net_to_runtime, runtime_net_to_runtime_def},
-  run::{Heap, OP2, REF},
+  run::{Net, Tag, DefNet},
+  ast::{Host, DefRef}
 };
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, borrow::BorrowMut};
 
 const MAX_ITERS: usize = 100_000;
 
@@ -14,17 +14,17 @@ const MAX_ITERS: usize = 100_000;
 /// If cross_refs, will deref and try to find the smallest net.
 /// Otherwise, just apply node~node interactions.
 pub fn pre_reduce_book(book: &mut BTreeMap<String, hvmc::ast::Net>, cross_refs: bool) -> Result<(), String> {
-  let mut rt_book = hvmc::ast::book_to_runtime(book);
-  for (nam, net) in book.iter() {
+  println!("{:#?}", book);
+  let mut host = Host::new(book);
+  for (nam, net) in book.iter_mut() {
     // Skip unnecessary work
     if net.rdex.is_empty() {
       continue;
     }
-    let heap = Heap::init(1 << 18);
-    let mut rt = hvmc::run::Net::new(&heap);
-    let fid = name_to_val(nam);
-    rt.boot(fid);
-    rt.expand(&rt_book);
+    let area = hvmc::run::Net::init_heap(1 << 18);
+    let mut rt = hvmc::run::Net::new(&area);
+    rt.boot(host.defs.get(nam).expect("No function."));
+    rt.expand();
 
     let fully_reduce = cross_refs && nam != DefNames::ENTRY_POINT;
     let iters = if fully_reduce {
@@ -32,9 +32,9 @@ pub fn pre_reduce_book(book: &mut BTreeMap<String, hvmc::ast::Net>, cross_refs: 
       // TODO: If I just call `rt.normal` some terms expand infinitely, so I put this workaround.
       // But I don't think this is the right way (even if it works).
       loop {
-        iters += rt.reduce(&rt_book, MAX_ITERS);
-        if rt.heap.get_root().is_ref() {
-          rt.expand(&rt_book);
+        iters += rt.reduce(MAX_ITERS);
+        if rt.root.as_ref().map(|x| x.load_target().tag() == Tag::Ref).unwrap_or(false) {
+          rt.expand();
         } else {
           break;
         }
@@ -46,15 +46,13 @@ pub fn pre_reduce_book(book: &mut BTreeMap<String, hvmc::ast::Net>, cross_refs: 
     if iters > MAX_ITERS {
       return Err(format!("Unable to pre-reduce definition {nam} in under {MAX_ITERS} iterations"));
     }
-    rt_book.defs.insert(fid, runtime_net_sparse_to_runtime_def(&rt));
+    *net = host.readback(&rt);
   }
-  *book = book_from_runtime(&rt_book);
   Ok(())
 }
 
 /// Normalizes a runtime net, except for derefs.
 fn reduce_without_deref(net: &mut hvmc::run::Net<'_>, limit: usize) -> usize {
-  let book = hvmc::run::Book::new();
   let mut collected_redexes = vec![];
   let mut iters = 0;
 
@@ -64,10 +62,11 @@ fn reduce_without_deref(net: &mut hvmc::run::Net<'_>, limit: usize) -> usize {
   let mut rdexes = std::mem::take(&mut net.rdex);
   while !rdexes.is_empty() {
     for (a, b) in rdexes {
-      match (a.tag(), b.tag()) {
+      match (a.tag() as u8, b.tag() as u8) {
         // But things would start to grow pretty quickly and we need some criteria for which net to choose and when to stop.
-        (REF, OP2 ..) | (OP2 .., REF) => collected_redexes.push((a, b)),
-        _ => net.interact(&book, a, b),
+        (2 /* Tag::Ref as u8 */, 4../* Tag::Op2 as u8 */) 
+          | (4.., 2) => collected_redexes.push((a, b)),
+        _ => net.interact(a, b),
       }
       if iters >= limit {
         break;
@@ -80,15 +79,4 @@ fn reduce_without_deref(net: &mut hvmc::run::Net<'_>, limit: usize) -> usize {
   net.rdex = collected_redexes;
 
   iters
-}
-
-/// Converts a runtime net after execution, with null elements in the heap, into to an hvmc Def.
-fn runtime_net_sparse_to_runtime_def(rt_net: &hvmc::run::Net) -> hvmc::run::Def {
-  // Convert back and forth to compress the net.
-  // Hacky, but works and not that slow.
-  let net = net_from_runtime(rt_net);
-  let data = hvmc::run::Heap::init(1 << 18);
-  let mut rt_net = hvmc::run::Net::new(&data);
-  net_to_runtime(&mut rt_net, &net);
-  runtime_net_to_runtime_def(&rt_net)
 }

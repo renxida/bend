@@ -1,9 +1,8 @@
-use super::{term_to_net::Labels, var_id_to_name, Book, DefId, MatchNum, Name, Op, Tag, Term, Val};
+use super::{term_to_net::Labels, Book, DefId, MatchNum, Name, Op, Tag, Term};
 use crate::{
   net::{INet, NodeId, NodeKind::*, Port, SlotId, ROOT},
   term::Pattern,
 };
-use hvmc::run::Loc;
 use std::collections::{HashMap, HashSet};
 
 // TODO: Display scopeless lambdas as such
@@ -29,7 +28,7 @@ pub fn net_to_term(net: &INet, book: &Book, labels: &Labels, linear: bool) -> (T
 
     let tag = match reader.net.node(node).kind {
       Tup => None,
-      Dup { lab } => Some(reader.labels.dup.to_tag(Some(lab))),
+      Dup { lab } => Some(reader.labels.dup.to_tag(Some(lab as u32))),
       _ => unreachable!(),
     };
 
@@ -90,7 +89,7 @@ impl<'a> Reader<'a> {
         0 => {
           let nam = self.namegen.decl_name(self.net, Port(node, 1));
           let bod = self.read_term(self.net.enter_port(Port(node, 2)));
-          Term::Lam { tag: self.labels.con.to_tag(lab), nam, bod: Box::new(bod) }
+          Term::Lam { tag: self.labels.con.to_tag(lab.map(|x| x as u32)), nam, bod: Box::new(bod) }
         }
         // If we're visiting a port 1, then it is a variable.
         1 => Term::Var { nam: self.namegen.var_name(next) },
@@ -98,7 +97,7 @@ impl<'a> Reader<'a> {
         2 => {
           let fun = self.read_term(self.net.enter_port(Port(node, 0)));
           let arg = self.read_term(self.net.enter_port(Port(node, 1)));
-          Term::App { tag: self.labels.con.to_tag(lab), fun: Box::new(fun), arg: Box::new(arg) }
+          Term::App { tag: self.labels.con.to_tag(lab.map(|x| x as u32)), fun: Box::new(fun), arg: Box::new(arg) }
         }
         _ => unreachable!(),
       },
@@ -128,7 +127,7 @@ impl<'a> Reader<'a> {
         _ => unreachable!(),
       },
       Ref { def_id } => {
-        if self.book.is_generated_def(def_id) {
+        if self.book.is_generated_def(&def_id) {
           let def = self.book.defs.get(&def_id).unwrap();
           def.assert_no_pattern_matching_rules();
           let mut term = def.rules[0].body.clone();
@@ -144,12 +143,12 @@ impl<'a> Reader<'a> {
         // If we're visiting a port 0, then it is a pair.
         0 => {
           if let Some(dup_paths) = &mut self.dup_paths {
-            let stack = dup_paths.entry(lab).or_default();
+            let stack = dup_paths.entry(lab as u32).or_default();
             if let Some(slot) = stack.pop() {
               // Since we had a paired Dup in the path to this Sup,
               // we "decay" the superposition according to the original direction we came from the Dup.
               let term = self.read_term(self.net.enter_port(Port(node, slot)));
-              self.dup_paths.as_mut().unwrap().get_mut(&lab).unwrap().push(slot);
+              self.dup_paths.as_mut().unwrap().get_mut(&(lab as u32)).unwrap().push(slot);
               Some(term)
             } else {
               None
@@ -161,16 +160,16 @@ impl<'a> Reader<'a> {
             // If no Dup with same label in the path, we can't resolve the Sup, so keep it as a term.
             let fst = self.read_term(self.net.enter_port(Port(node, 1)));
             let snd = self.read_term(self.net.enter_port(Port(node, 2)));
-            Term::Sup { tag: self.labels.dup.to_tag(Some(lab)), fst: Box::new(fst), snd: Box::new(snd) }
+            Term::Sup { tag: self.labels.dup.to_tag(Some(lab as u32)), fst: Box::new(fst), snd: Box::new(snd) }
           })
         }
         // If we're visiting a port 1 or 2, then it is a variable.
         // Also, that means we found a dup, so we store it to read later.
         1 | 2 => {
           if let Some(dup_paths) = &mut self.dup_paths {
-            dup_paths.entry(lab).or_default().push(next.slot());
+            dup_paths.entry(lab as u32).or_default().push(next.slot());
             let term = self.read_term(self.net.enter_port(Port(node, 0)));
-            self.dup_paths.as_mut().unwrap().entry(lab).or_default().pop().unwrap();
+            self.dup_paths.as_mut().unwrap().entry(lab as u32).or_default().pop().unwrap();
             term
           } else {
             self.scope.insert(node);
@@ -317,8 +316,8 @@ impl Scope {
 
 #[derive(Default)]
 struct NameGen {
-  var_port_to_id: HashMap<Port, Val>,
-  id_counter: Val,
+  var_port_to_id: HashMap<Port, u64>,
+  id_counter: u64,
 }
 
 impl NameGen {
@@ -330,7 +329,7 @@ impl NameGen {
       id
     });
 
-    var_id_to_name(*id)
+    Name::from_num(*id)
   }
 
   fn decl_name(&mut self, net: &INet, var_port: Port) -> Option<Name> {
@@ -343,46 +342,47 @@ impl NameGen {
   fn unique(&mut self) -> Name {
     let id = self.id_counter;
     self.id_counter += 1;
-    var_id_to_name(id)
+    Name::from_num(id)
   }
 }
 
 impl Op {
-  pub fn from_hvmc_label(value: Loc) -> Option<Op> {
+  pub fn from_hvmc_label(value: hvmc::ops::Op) -> Option<Op> {
+    use hvmc::ops::Op as RtOp;
     match value {
-      0x0 => Some(Op::ADD),
-      0x1 => Some(Op::SUB),
-      0x2 => Some(Op::MUL),
-      0x3 => Some(Op::DIV),
-      0x4 => Some(Op::MOD),
-      0x5 => Some(Op::EQ),
-      0x6 => Some(Op::NE),
-      0x7 => Some(Op::LT),
-      0x8 => Some(Op::GT),
-      0x9 => Some(Op::LTE),
-      0xa => Some(Op::GTE),
-      0xb => Some(Op::AND),
-      0xc => Some(Op::OR),
-      0xd => Some(Op::XOR),
-      0xe => Some(Op::LSH),
-      0xf => Some(Op::RSH),
-      0x10 => Some(Op::NOT),
+      RtOp::Add => Some(Op::ADD),
+      RtOp::Sub => Some(Op::SUB),
+      RtOp::Mul => Some(Op::MUL),
+      RtOp::Div => Some(Op::DIV),
+      RtOp::Mod => Some(Op::MOD),
+      RtOp::Eq  => Some(Op::EQ),
+      RtOp::Ne  => Some(Op::NE),
+      RtOp::Lt  => Some(Op::LT),
+      RtOp::Gt  => Some(Op::GT),
+      RtOp::Lte => Some(Op::LTE),
+      RtOp::Gte => Some(Op::GTE),
+      RtOp::And => Some(Op::AND),
+      RtOp::Or  => Some(Op::OR),
+      RtOp::Xor => Some(Op::XOR),
+      RtOp::Lsh => Some(Op::LSH),
+      RtOp::Rsh => Some(Op::RSH),
+      RtOp::Not => Some(Op::NOT),
       _ => None,
     }
   }
 }
 
 impl Book {
-  pub fn is_generated_def(&self, def_id: DefId) -> bool {
-    self.def_names.name(&def_id).map_or(false, |Name(name)| name.contains('$'))
+  pub fn is_generated_def(&self, def_id: &DefId) -> bool {
+    self.def_names.name(def_id).map_or(false, |Name(name)| name.contains('$'))
   }
 }
 
 impl Term {
-  fn fix_names(&mut self, id_counter: &mut Val, book: &Book) {
-    fn fix_name(nam: &mut Option<Name>, id_counter: &mut Val, bod: &mut Term) {
+  fn fix_names(&mut self, id_counter: &mut u64, book: &Book) {
+    fn fix_name(nam: &mut Option<Name>, id_counter: &mut u64, bod: &mut Term) {
       if let Some(nam) = nam {
-        let name = var_id_to_name(*id_counter);
+        let name = Name::from_num(*id_counter);
         *id_counter += 1;
         bod.subst(nam, &Term::Var { nam: name.clone() });
         *nam = name;
@@ -395,7 +395,7 @@ impl Term {
         bod.fix_names(id_counter, book);
       }
       Term::Ref { def_id } => {
-        if book.is_generated_def(*def_id) {
+        if book.is_generated_def(def_id) {
           let def = book.defs.get(def_id).unwrap();
           def.assert_no_pattern_matching_rules();
           let mut term = def.rules[0].body.clone();

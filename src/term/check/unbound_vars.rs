@@ -1,5 +1,4 @@
 use crate::term::{Book, MatchNum, Name, Pattern, Term};
-use hvmc::run::Val;
 use std::collections::HashMap;
 
 impl Book {
@@ -35,7 +34,7 @@ impl Term {
 /// Globals has how many times a global var name was declared and used.
 pub fn check_uses<'a>(
   term: &'a Term,
-  scope: &mut HashMap<&'a Name, Val>,
+  scope: &mut HashMap<&'a Name, u64>,
   globals: &mut HashMap<&'a Name, (bool, bool)>,
 ) -> Result<(), String> {
   // TODO: Don't stop at the first error
@@ -100,7 +99,7 @@ pub fn check_uses<'a>(
   Ok(())
 }
 
-fn push_scope<'a>(nam: Option<&'a Name>, scope: &mut HashMap<&'a Name, Val>) {
+fn push_scope<'a>(nam: Option<&'a Name>, scope: &mut HashMap<&'a Name, u64>) {
   if let Some(nam) = nam {
     if let Some(n_declarations) = scope.get_mut(nam) {
       *n_declarations += 1;
@@ -110,7 +109,7 @@ fn push_scope<'a>(nam: Option<&'a Name>, scope: &mut HashMap<&'a Name, Val>) {
   }
 }
 
-fn pop_scope(nam: Option<&Name>, scope: &mut HashMap<&Name, Val>) {
+fn pop_scope(nam: Option<&Name>, scope: &mut HashMap<&Name, u64>) {
   if let Some(nam) = nam {
     let n_declarations = scope.get_mut(nam).unwrap();
     *n_declarations -= 1;
