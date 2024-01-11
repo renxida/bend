@@ -28,16 +28,10 @@ pub fn check_book(mut book: Book) -> Result<(), String> {
 
 pub fn compile_book(book: &mut Book, opt_level: OptimizationLevel) -> Result<CompileResult, String> {
   let main = desugar_book(book, opt_level)?;
-  println!("{}", book);
   let (nets, labels) = book_to_nets(book, main);
   let mut core_book = nets_to_hvmc(nets)?;
-  println!("{:#?}", core_book);
-  println!("Pre reduce");
-  //pre_reduce_book(&mut core_book, opt_level >= OptimizationLevel::Heavy)?;
-  println!("{:#?}", core_book);
-  println!("Prune");
-  //prune_defs(&mut core_book);
-  println!("{:#?}", core_book);
+  pre_reduce_book(&mut core_book, opt_level >= OptimizationLevel::Heavy)?;
+  prune_defs(&mut core_book);
   Ok(CompileResult { core_book, labels, warnings: vec![] })
 }
 

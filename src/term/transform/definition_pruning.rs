@@ -14,7 +14,6 @@ impl Book {
     for rule in rules {
       rule.body.find_used_definitions(&mut used, &self.defs);
     }
-    println!("{}", self);
 
     let ids = HashSet::from_iter(self.def_names.def_ids().cloned());
     let unused = ids.difference(&used);

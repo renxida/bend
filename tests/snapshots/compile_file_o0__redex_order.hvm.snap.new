@@ -1,0 +1,19 @@
+---
+source: tests/golden_tests.rs
+assertion_line: 51
+input_file: tests/golden_tests/compile_file_o0/redex_order.hvm
+---
+@a = (a b)
+& @c ~ (c b)
+& @d ~ (d c)
+& @e ~ (a d)
+@b = a
+& @c ~ (b a)
+& @d ~ (c b)
+& @e ~ (#0 c)
+@c = (a a)
+@d = (a a)
+@e = (a a)
+@main = a
+& @a ~ (@b a)
+

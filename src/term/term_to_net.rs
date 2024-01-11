@@ -21,7 +21,6 @@ pub fn book_to_nets(book: &Book, main: DefId) -> (HashMap<String, INet>, Labels)
       } else {
         def_id_to_hvmc_name(book, &def.def_id, &nets)
       };
-      println!("{:?}", name);
 
       nets.insert(name, net);
     }

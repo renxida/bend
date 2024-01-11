@@ -5,7 +5,6 @@ use hvmc::{
 use std::collections::HashSet;
 
 pub fn prune_defs(book: &mut Book) {
-  println!("{:?}", "Prune defs");
   let mut used_defs = HashSet::new();
   for def in book.values() {
     used_defs_in_tree(&def.root, &mut used_defs);
@@ -14,7 +13,6 @@ pub fn prune_defs(book: &mut Book) {
       used_defs_in_tree(b, &mut used_defs);
     }
   }
-  println!("{:?}", used_defs);
   let used_defs = used_defs.into_iter().collect::<HashSet<_>>();
   book.retain(|nam, _| used_defs.contains(nam) || nam == DefNames::ENTRY_POINT);
 }
@@ -22,7 +20,6 @@ pub fn prune_defs(book: &mut Book) {
 fn used_defs_in_tree(tree: &Tree, used_defs: &mut HashSet<String>) {
   match tree {
     Tree::Ref { nam } => {
-      println!("{:?}", nam);
       used_defs.insert(nam.clone());
     }
     Tree::Ctr { lft, rgt, .. }
