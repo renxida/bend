@@ -83,7 +83,7 @@ fn compile_term() {
     term.make_var_names_unique();
     term.linearize_vars();
     let compat_net = term_to_compat_net(&term, &mut Default::default());
-    let net = net_to_hvmc(&compat_net, &|def_id| def_id.to_internal())?;
+    let net = net_to_hvmc(&compat_net)?;
 
     let result = show_net(&net);
 
@@ -129,7 +129,7 @@ fn readback_lnet() {
   run_golden_test_dir(function_name!(), &|code| {
     let net = do_parse_net(code)?;
     let book = Book::default();
-    let compat_net = hvmc_to_net(&net, &DefId::from_internal);
+    let compat_net = hvmc_to_net(&net);
     let (term, errors) = net_to_term(&compat_net, &book, &Default::default(), false);
     if errors.is_empty() {
       Ok(term.display(&book.def_names).to_string())
