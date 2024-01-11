@@ -2,7 +2,7 @@
 #![feature(return_position_impl_trait_in_trait)]
 
 use hvmc::{
-  ast::{show_book, Host, Net},
+  ast::{show_book, Host, Net, show_net},
   run::{Area, Rewrites, Net as RtNet},
 };
 use hvmc_net::{pre_reduce::pre_reduce_book, prune::prune_defs};
@@ -28,10 +28,16 @@ pub fn check_book(mut book: Book) -> Result<(), String> {
 
 pub fn compile_book(book: &mut Book, opt_level: OptimizationLevel) -> Result<CompileResult, String> {
   let main = desugar_book(book, opt_level)?;
+  println!("{}", book);
   let (nets, labels) = book_to_nets(book, main);
   let mut core_book = nets_to_hvmc(nets)?;
-  pre_reduce_book(&mut core_book, opt_level >= OptimizationLevel::Heavy)?;
-  prune_defs(&mut core_book);
+  println!("{:#?}", core_book);
+  println!("Pre reduce");
+  //pre_reduce_book(&mut core_book, opt_level >= OptimizationLevel::Heavy)?;
+  println!("{:#?}", core_book);
+  println!("Prune");
+  //prune_defs(&mut core_book);
+  println!("{:#?}", core_book);
   Ok(CompileResult { core_book, labels, warnings: vec![] })
 }
 
@@ -109,15 +115,17 @@ pub fn run_compiled(
   parallel: bool,
   hook: Option<impl FnMut(&Net)>,
 ) -> (Net, RunStats) {
+
   let host = Host::new(book);
   let heap = RtNet::init_heap(mem_size);
   let mut root = RtNet::new(&heap);
   // Expect won't be reached because there's
   // a pass that checks this.
   root.boot(host.defs.get(DefNames::ENTRY_POINT).expect("No main function."));
+  
 
   let start_time = Instant::now();
-
+  
   if let Some(mut hook) = hook {
     root.expand();
     while !root.rdex.is_empty() {

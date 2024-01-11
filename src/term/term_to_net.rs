@@ -21,6 +21,7 @@ pub fn book_to_nets(book: &Book, main: DefId) -> (HashMap<String, INet>, Labels)
       } else {
         def_id_to_hvmc_name(book, &def.def_id, &nets)
       };
+      println!("{:?}", name);
 
       nets.insert(name, net);
     }
@@ -33,34 +34,9 @@ pub fn book_to_nets(book: &Book, main: DefId) -> (HashMap<String, INet>, Labels)
 }
 
 /// Converts rules names to unique names compatible with hvm-core:
-///   If the rule is compiler-generated: Convert the DefId value into a new name
-///   If not: Truncates the rule name into 4 chars
-/// Them checks if the given hashmap already contains the resulted name,
-/// if it does, falls back into converting its DefId and succeeding ones until a unique name is found.
+/// Simply extracts the name's String.
 fn def_id_to_hvmc_name(book: &Book, def_id: &DefId, nets: &HashMap<String, INet>) -> String {
-  fn truncate(s: &str, max_chars: usize) -> &str {
-    match s.char_indices().nth(max_chars) {
-      None => s,
-      Some((idx, _)) => &s[.. idx],
-    }
-  }
-
-  fn gen_unique_name(def_id: &DefId, nets: &HashMap<String, INet>) -> String {
-    // TODO obviously quite inefficient
-    if nets.contains_key(&def_id.0) { gen_unique_name(&DefId(def_id.clone().0+ "_"), nets) } else { def_id.0.clone() }
-  }
-
-  if book.is_generated_def(def_id) {
-    gen_unique_name(def_id, nets)
-  } else {
-    let Name(name) = book.def_names.name(def_id).unwrap();
-    let name = truncate(name, 10);
-    if !(nets.contains_key(name) || name.eq(DefNames::ENTRY_POINT)) {
-      name.to_owned()
-    } else {
-      gen_unique_name(def_id, nets)
-    }
-  }
+  def_id.0.clone()
 }
 
 /// Converts an IC term into an IC net.

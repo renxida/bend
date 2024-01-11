@@ -22,8 +22,8 @@ cli = ["dep:clap"]
 [dependencies]
 chumsky = "= 1.0.0-alpha.4"
 clap = { version = "4.4.1", features = ["derive"], optional = true }
-hvm-core = { git = "https://github.com/HigherOrderCo/hvm-core", branch = "ptr-refactor-nonnull" }
-indexmap = "2.1.0"z
+hvm-core = { git = "https://github.com/HigherOrderCO/hvm-core", branch = "ptr-refactor-nonnull" }
+indexmap = "2.1.0"
 itertools = "0.11.0"
 logos = "0.13.0"
 shrinkwraprs = "0.3.0"
