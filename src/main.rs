@@ -103,9 +103,6 @@ fn main() {
         let RunInfo { stats, readback_errors, net: lnet } = info;
         let total_rewrites = total_rewrites(&stats.rewrites) as f64;
         let rps = total_rewrites / stats.run_time / 1_000_000.0;
-        if true {
-          println!("\n{}", show_net(&lnet));
-        }
 
         println!(
           "{}{}",
