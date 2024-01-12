@@ -1,1 +1,3 @@
-Main = λa Main
+// Main = λa Main
+// FIXME: why does this exist?
+main = λa main

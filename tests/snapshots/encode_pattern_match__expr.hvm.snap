@@ -2,11 +2,13 @@
 source: tests/golden_tests.rs
 input_file: tests/golden_tests/encode_pattern_match/expr.hvm
 ---
-(Var) = λname λ#Expr Var λ#Expr Num λ#Expr App λ#Expr Fun λ#Expr If λ#Expr Let λ#Expr Dup λ#Expr Tup λ#Expr Op2 (#Expr.Var.name Var name)
-
-(Num) = λval λ#Expr Var λ#Expr Num λ#Expr App λ#Expr Fun λ#Expr If λ#Expr Let λ#Expr Dup λ#Expr Tup λ#Expr Op2 (#Expr.Num.val Num val)
+(Add) = λ#Op Add λ#Op Sub λ#Op Mul λ#Op Div Add
 
 (App) = λfun λarg λ#Expr Var λ#Expr Num λ#Expr App λ#Expr Fun λ#Expr If λ#Expr Let λ#Expr Dup λ#Expr Tup λ#Expr Op2 (#Expr.App.arg (#Expr.App.fun App fun) arg)
+
+(Div) = λ#Op Add λ#Op Sub λ#Op Mul λ#Op Div Div
+
+(Dup) = λfst λsnd λval λnext λ#Expr Var λ#Expr Num λ#Expr App λ#Expr Fun λ#Expr If λ#Expr Let λ#Expr Dup λ#Expr Tup λ#Expr Op2 (#Expr.Dup.next (#Expr.Dup.val (#Expr.Dup.snd (#Expr.Dup.fst Dup fst) snd) val) next)
 
 (Fun) = λname λbody λ#Expr Var λ#Expr Num λ#Expr App λ#Expr Fun λ#Expr If λ#Expr Let λ#Expr Dup λ#Expr Tup λ#Expr Op2 (#Expr.Fun.body (#Expr.Fun.name Fun name) body)
 
@@ -14,16 +16,14 @@ input_file: tests/golden_tests/encode_pattern_match/expr.hvm
 
 (Let) = λbind λval λnext λ#Expr Var λ#Expr Num λ#Expr App λ#Expr Fun λ#Expr If λ#Expr Let λ#Expr Dup λ#Expr Tup λ#Expr Op2 (#Expr.Let.next (#Expr.Let.val (#Expr.Let.bind Let bind) val) next)
 
-(Dup) = λfst λsnd λval λnext λ#Expr Var λ#Expr Num λ#Expr App λ#Expr Fun λ#Expr If λ#Expr Let λ#Expr Dup λ#Expr Tup λ#Expr Op2 (#Expr.Dup.next (#Expr.Dup.val (#Expr.Dup.snd (#Expr.Dup.fst Dup fst) snd) val) next)
+(Mul) = λ#Op Add λ#Op Sub λ#Op Mul λ#Op Div Mul
 
-(Tup) = λfst λsnd λ#Expr Var λ#Expr Num λ#Expr App λ#Expr Fun λ#Expr If λ#Expr Let λ#Expr Dup λ#Expr Tup λ#Expr Op2 (#Expr.Tup.snd (#Expr.Tup.fst Tup fst) snd)
+(Num) = λval λ#Expr Var λ#Expr Num λ#Expr App λ#Expr Fun λ#Expr If λ#Expr Let λ#Expr Dup λ#Expr Tup λ#Expr Op2 (#Expr.Num.val Num val)
 
 (Op2) = λop λfst λsnd λ#Expr Var λ#Expr Num λ#Expr App λ#Expr Fun λ#Expr If λ#Expr Let λ#Expr Dup λ#Expr Tup λ#Expr Op2 (#Expr.Op2.snd (#Expr.Op2.fst (#Expr.Op2.op Op2 op) fst) snd)
 
-(Add) = λ#Op Add λ#Op Sub λ#Op Mul λ#Op Div Add
-
 (Sub) = λ#Op Add λ#Op Sub λ#Op Mul λ#Op Div Sub
 
-(Mul) = λ#Op Add λ#Op Sub λ#Op Mul λ#Op Div Mul
+(Tup) = λfst λsnd λ#Expr Var λ#Expr Num λ#Expr App λ#Expr Fun λ#Expr If λ#Expr Let λ#Expr Dup λ#Expr Tup λ#Expr Op2 (#Expr.Tup.snd (#Expr.Tup.fst Tup fst) snd)
 
-(Div) = λ#Op Add λ#Op Sub λ#Op Mul λ#Op Div Div
+(Var) = λname λ#Expr Var λ#Expr Num λ#Expr App λ#Expr Fun λ#Expr If λ#Expr Let λ#Expr Dup λ#Expr Tup λ#Expr Op2 (#Expr.Var.name Var name)

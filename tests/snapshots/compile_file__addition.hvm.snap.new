@@ -1,9 +1,0 @@
----
-source: tests/golden_tests.rs
-assertion_line: 51
-input_file: tests/golden_tests/compile_file/addition.hvm
----
-@b = (<+ #2 a> a)
-@main = a
-& @b ~ (#8 a)
-

@@ -2,14 +2,14 @@
 source: tests/golden_tests.rs
 input_file: tests/golden_tests/compile_file/nested_adt_match.hvm
 ---
-@4 = ({2 @8 {2 @6 a}} a)
-@6 = #0
-@8 = {4 {2 @C {2 @A a}} a}
-@A = #0
-@C = {4 a a}
 @Some = (a {2 {4 a b} {2 * b}})
 @main = a
-& @4 ~ (b a)
+& @main$match$1 ~ (b a)
 & @Some ~ (c b)
 & @Some ~ (#1 c)
+@main$match$1 = ({2 @main$match$1$PSome {2 @main$match$1$R0 a}} a)
+@main$match$1$F0$PSome = {4 a a}
+@main$match$1$F0$R0 = #0
+@main$match$1$PSome = {4 {2 @main$match$1$F0$PSome {2 @main$match$1$F0$R0 a}} a}
+@main$match$1$R0 = #0
 

@@ -2,18 +2,18 @@
 source: tests/golden_tests.rs
 input_file: tests/golden_tests/encode_pattern_match/weekday.hvm
 ---
-(main) = (λx x Saturday)
+(Friday) = λ#Weekday Monday λ#Weekday Tuesday λ#Weekday Wednesday λ#Weekday Thursday λ#Weekday Friday λ#Weekday Saturday λ#Weekday Sunday Friday
 
 (Monday) = λ#Weekday Monday λ#Weekday Tuesday λ#Weekday Wednesday λ#Weekday Thursday λ#Weekday Friday λ#Weekday Saturday λ#Weekday Sunday Monday
+
+(Saturday) = λ#Weekday Monday λ#Weekday Tuesday λ#Weekday Wednesday λ#Weekday Thursday λ#Weekday Friday λ#Weekday Saturday λ#Weekday Sunday Saturday
+
+(Sunday) = λ#Weekday Monday λ#Weekday Tuesday λ#Weekday Wednesday λ#Weekday Thursday λ#Weekday Friday λ#Weekday Saturday λ#Weekday Sunday Sunday
+
+(Thursday) = λ#Weekday Monday λ#Weekday Tuesday λ#Weekday Wednesday λ#Weekday Thursday λ#Weekday Friday λ#Weekday Saturday λ#Weekday Sunday Thursday
 
 (Tuesday) = λ#Weekday Monday λ#Weekday Tuesday λ#Weekday Wednesday λ#Weekday Thursday λ#Weekday Friday λ#Weekday Saturday λ#Weekday Sunday Tuesday
 
 (Wednesday) = λ#Weekday Monday λ#Weekday Tuesday λ#Weekday Wednesday λ#Weekday Thursday λ#Weekday Friday λ#Weekday Saturday λ#Weekday Sunday Wednesday
 
-(Thursday) = λ#Weekday Monday λ#Weekday Tuesday λ#Weekday Wednesday λ#Weekday Thursday λ#Weekday Friday λ#Weekday Saturday λ#Weekday Sunday Thursday
-
-(Friday) = λ#Weekday Monday λ#Weekday Tuesday λ#Weekday Wednesday λ#Weekday Thursday λ#Weekday Friday λ#Weekday Saturday λ#Weekday Sunday Friday
-
-(Saturday) = λ#Weekday Monday λ#Weekday Tuesday λ#Weekday Wednesday λ#Weekday Thursday λ#Weekday Friday λ#Weekday Saturday λ#Weekday Sunday Saturday
-
-(Sunday) = λ#Weekday Monday λ#Weekday Tuesday λ#Weekday Wednesday λ#Weekday Thursday λ#Weekday Friday λ#Weekday Saturday λ#Weekday Sunday Sunday
+(main) = (λx x Saturday)

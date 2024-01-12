@@ -32,8 +32,6 @@ pub fn book_to_nets(book: &Book, main: DefId) -> (HashMap<String, INet>, Labels)
   (nets, labels)
 }
 
-/// Converts rules names to unique names compatible with hvm-core:
-/// Simply extracts the name's String.
 fn def_id_to_hvmc_name(book: &Book, def_id: &DefId, nets: &HashMap<String, INet>) -> String {
   def_id.0.clone()
 }

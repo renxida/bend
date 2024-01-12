@@ -315,7 +315,7 @@ impl DefNames {
   }
 
   pub fn insert(&mut self, name: Name) -> DefId {
-    let def_id = DefId(hvmc::ast::num_to_str(self.id_count as usize));
+    let def_id = DefId(self.make_unique(&name));
     self.id_count += 1;
     self.id_to_name.insert(def_id.clone(), name.clone());
     self.name_to_id.insert(name, def_id.clone());
@@ -337,6 +337,20 @@ impl DefNames {
   pub fn def_ids(&self) -> impl Iterator<Item = &DefId> {
     self.id_to_name.keys()
   }
+
+  pub fn make_unique(&mut self, name: &Name) -> String {
+    if !self.contains_name(name) {
+      return name.clone().0
+    }
+    let mut id = 0;
+    loop {
+      let new_name = Name(format!("{name}_{id}"));
+      if !self.contains_name(&new_name) {
+        return new_name.0;
+      }
+    }
+  }
+
 }
 
 impl Term {
