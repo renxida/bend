@@ -2,6 +2,6 @@
 source: tests/golden_tests.rs
 input_file: tests/golden_tests/compile_file/str.hvm
 ---
-@main = [#6 @main$S0]
-@main$S0 = {2 a [#109 [#97 [#105 [#110 [#32 [#61 a]]]]]]}
+@2 = {2 a [#109 [#97 [#105 [#110 [#32 [#61 a]]]]]]}
+@main = [#6 @2]
 

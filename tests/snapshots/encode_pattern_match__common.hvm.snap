@@ -2,36 +2,36 @@
 source: tests/golden_tests.rs
 input_file: tests/golden_tests/encode_pattern_match/common.hvm
 ---
-(Cons) = λx λxs λ#List Cons λ#List Nil (#List.Cons.xs (#List.Cons.x Cons x) xs)
+(True) = #Bool λTrue #Bool λFalse True
 
-(East) = λ#Direction North λ#Direction South λ#Direction East λ#Direction West East
+(False) = #Bool λTrue #Bool λFalse False
 
-(Empty) = λ#Box Filled λ#Box Empty Empty
+(Filled) = λvalue #Box λFilled #Box λEmpty #Box.Filled.value (Filled value)
 
-(Err) = λb λ#Result Ok λ#Result Err (#Result.Err.b Err b)
+(Empty) = #Box λFilled #Box λEmpty Empty
 
-(False) = λ#Bool True λ#Bool False False
+(North) = #Direction λNorth #Direction λSouth #Direction λEast #Direction λWest North
 
-(Filled) = λvalue λ#Box Filled λ#Box Empty (#Box.Filled.value Filled value)
+(South) = #Direction λNorth #Direction λSouth #Direction λEast #Direction λWest South
 
-(Green) = λ#Light Red λ#Light Yellow λ#Light Green Green
+(East) = #Direction λNorth #Direction λSouth #Direction λEast #Direction λWest East
 
-(Nil) = λ#List Cons λ#List Nil Nil
+(West) = #Direction λNorth #Direction λSouth #Direction λEast #Direction λWest West
 
-(None) = λ#Option Some λ#Option None None
+(Red) = #Light λRed #Light λYellow #Light λGreen Red
 
-(North) = λ#Direction North λ#Direction South λ#Direction East λ#Direction West North
+(Yellow) = #Light λRed #Light λYellow #Light λGreen Yellow
 
-(Ok) = λa λ#Result Ok λ#Result Err (#Result.Ok.a Ok a)
+(Green) = #Light λRed #Light λYellow #Light λGreen Green
 
-(Red) = λ#Light Red λ#Light Yellow λ#Light Green Red
+(Cons) = λx λxs #List λCons #List λNil #List.Cons.xs (#List.Cons.x (Cons x) xs)
 
-(Some) = λx λ#Option Some λ#Option None (#Option.Some.x Some x)
+(Nil) = #List λCons #List λNil Nil
 
-(South) = λ#Direction North λ#Direction South λ#Direction East λ#Direction West South
+(Some) = λx #Option λSome #Option λNone #Option.Some.x (Some x)
 
-(True) = λ#Bool True λ#Bool False True
+(None) = #Option λSome #Option λNone None
 
-(West) = λ#Direction North λ#Direction South λ#Direction East λ#Direction West West
+(Ok) = λa #Result λOk #Result λErr #Result.Ok.a (Ok a)
 
-(Yellow) = λ#Light Red λ#Light Yellow λ#Light Green Yellow
+(Err) = λb #Result λOk #Result λErr #Result.Err.b (Err b)

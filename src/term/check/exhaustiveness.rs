@@ -25,6 +25,7 @@ fn check_pattern(
   rules_to_check: Vec<usize>,
   def_name: &Name,
 ) -> Result<(), String> {
+  println!("{:?}", types);
   if let Some(pat_type) = types.first() {
     match pat_type {
       // We can skip non pattern matching arguments
