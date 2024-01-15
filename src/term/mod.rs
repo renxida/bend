@@ -142,87 +142,6 @@ pub enum Pattern {
   Tup(Box<Pattern>, Box<Pattern>),
 }
 
-impl Pattern {
-  pub fn occurs(&self, name: &Name) -> bool {
-    match self {
-      Pattern::Var(None) => false,
-      Pattern::Var(Some(nam)) => nam == name,
-      Pattern::Ctr(.., args) => {
-        let mut ret = false;
-        for arg in args {
-          ret |= arg.occurs(name);
-        }
-        ret
-      }
-      Pattern::Num(..) => false,
-      Pattern::Tup(fst, snd) => fst.occurs(name) || snd.occurs(name),
-    }
-  }
-
-  pub fn names(&self) -> impl DoubleEndedIterator<Item = &Name> {
-    fn go<'a>(pat: &'a Pattern, set: &mut Vec<&'a Option<Name>>) {
-      match pat {
-        Pattern::Var(nam) => set.push(nam),
-        Pattern::Ctr(_, pats) => pats.iter().for_each(|pat| go(pat, set)),
-        Pattern::Tup(fst, snd) => {
-          go(fst, set);
-          go(snd, set);
-        }
-        Pattern::Num(MatchNum::Succ(Some(nam))) => {
-          set.push(nam);
-        }
-        Pattern::Num(_) => {}
-      }
-    }
-    let mut set = Vec::new();
-    go(self, &mut set);
-    set.into_iter().flat_map(|a| a.as_ref())
-  }
-
-  pub fn names_mut(&mut self) -> impl DoubleEndedIterator<Item = &mut Name> {
-    fn go<'a>(pat: &'a mut Pattern, set: &mut Vec<&'a mut Option<Name>>) {
-      match pat {
-        Pattern::Var(nam) => set.push(nam),
-        Pattern::Ctr(_, pats) => pats.iter_mut().for_each(|pat| go(pat, set)),
-        Pattern::Tup(fst, snd) => {
-          go(fst, set);
-          go(snd, set);
-        }
-        Pattern::Num(MatchNum::Succ(Some(nam))) => {
-          set.push(nam);
-        }
-        Pattern::Num(_) => {}
-      }
-    }
-    let mut set = Vec::new();
-    go(self, &mut set);
-    set.into_iter().flat_map(|a| a.as_mut())
-  }
-
-  pub fn is_detached_num_match(&self) -> bool {
-    if let Pattern::Num(num) = self {
-      match num {
-        MatchNum::Zero => true,
-        MatchNum::Succ(None) => true,
-        MatchNum::Succ(Some(_)) => false,
-      }
-    } else {
-      false
-    }
-  }
-
-  pub fn is_flat(&self) -> bool {
-    match self {
-      Pattern::Var(_) => true,
-      Pattern::Ctr(_, args) => args.iter().all(|arg| matches!(arg, Pattern::Var(_))),
-      Pattern::Num(_) => true,
-      Pattern::Tup(fst, snd) => {
-        matches!(fst.as_ref(), Pattern::Var(_)) && matches!(snd.as_ref(), Pattern::Var(_))
-      }
-    }
-  }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Op {
   ADD,
@@ -266,8 +185,12 @@ impl Name {
 }
 
 impl Tag {
-  pub fn str() -> Self {
-    Self::Named(Name::new("str"))
+  pub fn string() -> Self {
+    Self::Named(Name::new("String"))
+  }
+
+  pub fn string_scons_head() -> Self {
+    Self::Named(Name::new("String.SCons.head"))
   }
 }
 
@@ -299,7 +222,11 @@ impl DefNames {
   }
 
   pub fn name(&self, def_id: &DefId) -> Option<&Name> {
-    self.id_to_name.get(def_id)
+    if def_id.0 == Self::ENTRY_POINT && self.id_to_name.contains_key(&DefId(String::from(Self::HVM1_ENTRY_POINT))) {
+      self.id_to_name.get(&DefId(String::from(Self::HVM1_ENTRY_POINT)))
+    } else {
+      self.id_to_name.get(def_id)
+    }
   }
 
   pub fn def_id(&self, name: &Name) -> Option<DefId> {
@@ -519,6 +446,87 @@ impl Term {
           scrutinee: Box::new(Term::Var { nam: match_bind }),
           arms: vec![zero, succ],
         }),
+      }
+    }
+  }
+}
+
+impl Pattern {
+  pub fn occurs(&self, name: &Name) -> bool {
+    match self {
+      Pattern::Var(None) => false,
+      Pattern::Var(Some(nam)) => nam == name,
+      Pattern::Ctr(.., args) => {
+        let mut ret = false;
+        for arg in args {
+          ret |= arg.occurs(name);
+        }
+        ret
+      }
+      Pattern::Num(..) => false,
+      Pattern::Tup(fst, snd) => fst.occurs(name) || snd.occurs(name),
+    }
+  }
+
+  pub fn names(&self) -> impl DoubleEndedIterator<Item = &Name> {
+    fn go<'a>(pat: &'a Pattern, set: &mut Vec<&'a Option<Name>>) {
+      match pat {
+        Pattern::Var(nam) => set.push(nam),
+        Pattern::Ctr(_, pats) => pats.iter().for_each(|pat| go(pat, set)),
+        Pattern::Tup(fst, snd) => {
+          go(fst, set);
+          go(snd, set);
+        }
+        Pattern::Num(MatchNum::Succ(Some(nam))) => {
+          set.push(nam);
+        }
+        Pattern::Num(_) => {}
+      }
+    }
+    let mut set = Vec::new();
+    go(self, &mut set);
+    set.into_iter().flat_map(|a| a.as_ref())
+  }
+
+  pub fn names_mut(&mut self) -> impl DoubleEndedIterator<Item = &mut Name> {
+    fn go<'a>(pat: &'a mut Pattern, set: &mut Vec<&'a mut Option<Name>>) {
+      match pat {
+        Pattern::Var(nam) => set.push(nam),
+        Pattern::Ctr(_, pats) => pats.iter_mut().for_each(|pat| go(pat, set)),
+        Pattern::Tup(fst, snd) => {
+          go(fst, set);
+          go(snd, set);
+        }
+        Pattern::Num(MatchNum::Succ(Some(nam))) => {
+          set.push(nam);
+        }
+        Pattern::Num(_) => {}
+      }
+    }
+    let mut set = Vec::new();
+    go(self, &mut set);
+    set.into_iter().flat_map(|a| a.as_mut())
+  }
+
+  pub fn is_detached_num_match(&self) -> bool {
+    if let Pattern::Num(num) = self {
+      match num {
+        MatchNum::Zero => true,
+        MatchNum::Succ(None) => true,
+        MatchNum::Succ(Some(_)) => false,
+      }
+    } else {
+      false
+    }
+  }
+
+  pub fn is_flat(&self) -> bool {
+    match self {
+      Pattern::Var(_) => true,
+      Pattern::Ctr(_, args) => args.iter().all(|arg| matches!(arg, Pattern::Var(_))),
+      Pattern::Num(_) => true,
+      Pattern::Tup(fst, snd) => {
+        matches!(fst.as_ref(), Pattern::Var(_)) && matches!(snd.as_ref(), Pattern::Var(_))
       }
     }
   }

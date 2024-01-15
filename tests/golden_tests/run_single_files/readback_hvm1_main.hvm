@@ -1,3 +1,0 @@
-// Main = λa Main
-// FIXME: why does this exist?
-main = λa main

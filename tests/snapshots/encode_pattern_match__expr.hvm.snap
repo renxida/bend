@@ -2,11 +2,13 @@
 source: tests/golden_tests.rs
 input_file: tests/golden_tests/encode_pattern_match/expr.hvm
 ---
-(Var) = λname #Expr λVar #Expr λNum #Expr λApp #Expr λFun #Expr λIf #Expr λLet #Expr λDup #Expr λTup #Expr λOp2 #Expr.Var.name (Var name)
-
-(Num) = λval #Expr λVar #Expr λNum #Expr λApp #Expr λFun #Expr λIf #Expr λLet #Expr λDup #Expr λTup #Expr λOp2 #Expr.Num.val (Num val)
+(Add) = #Op λAdd #Op λSub #Op λMul #Op λDiv Add
 
 (App) = λfun λarg #Expr λVar #Expr λNum #Expr λApp #Expr λFun #Expr λIf #Expr λLet #Expr λDup #Expr λTup #Expr λOp2 #Expr.App.arg (#Expr.App.fun (App fun) arg)
+
+(Div) = #Op λAdd #Op λSub #Op λMul #Op λDiv Div
+
+(Dup) = λfst λsnd λval λnext #Expr λVar #Expr λNum #Expr λApp #Expr λFun #Expr λIf #Expr λLet #Expr λDup #Expr λTup #Expr λOp2 #Expr.Dup.next (#Expr.Dup.val (#Expr.Dup.snd (#Expr.Dup.fst (Dup fst) snd) val) next)
 
 (Fun) = λname λbody #Expr λVar #Expr λNum #Expr λApp #Expr λFun #Expr λIf #Expr λLet #Expr λDup #Expr λTup #Expr λOp2 #Expr.Fun.body (#Expr.Fun.name (Fun name) body)
 
@@ -14,16 +16,18 @@ input_file: tests/golden_tests/encode_pattern_match/expr.hvm
 
 (Let) = λbind λval λnext #Expr λVar #Expr λNum #Expr λApp #Expr λFun #Expr λIf #Expr λLet #Expr λDup #Expr λTup #Expr λOp2 #Expr.Let.next (#Expr.Let.val (#Expr.Let.bind (Let bind) val) next)
 
-(Dup) = λfst λsnd λval λnext #Expr λVar #Expr λNum #Expr λApp #Expr λFun #Expr λIf #Expr λLet #Expr λDup #Expr λTup #Expr λOp2 #Expr.Dup.next (#Expr.Dup.val (#Expr.Dup.snd (#Expr.Dup.fst (Dup fst) snd) val) next)
+(Mul) = #Op λAdd #Op λSub #Op λMul #Op λDiv Mul
 
-(Tup) = λfst λsnd #Expr λVar #Expr λNum #Expr λApp #Expr λFun #Expr λIf #Expr λLet #Expr λDup #Expr λTup #Expr λOp2 #Expr.Tup.snd (#Expr.Tup.fst (Tup fst) snd)
+(Num) = λval #Expr λVar #Expr λNum #Expr λApp #Expr λFun #Expr λIf #Expr λLet #Expr λDup #Expr λTup #Expr λOp2 #Expr.Num.val (Num val)
 
 (Op2) = λop λfst λsnd #Expr λVar #Expr λNum #Expr λApp #Expr λFun #Expr λIf #Expr λLet #Expr λDup #Expr λTup #Expr λOp2 #Expr.Op2.snd (#Expr.Op2.fst (#Expr.Op2.op (Op2 op) fst) snd)
 
-(Add) = #Op λAdd #Op λSub #Op λMul #Op λDiv Add
+(SCons) = λhead λtail #String λSCons #String λSNil #String.SCons.tail (#String.SCons.head (SCons head) tail)
+
+(SNil) = #String λSCons #String λSNil SNil
 
 (Sub) = #Op λAdd #Op λSub #Op λMul #Op λDiv Sub
 
-(Mul) = #Op λAdd #Op λSub #Op λMul #Op λDiv Mul
+(Tup) = λfst λsnd #Expr λVar #Expr λNum #Expr λApp #Expr λFun #Expr λIf #Expr λLet #Expr λDup #Expr λTup #Expr λOp2 #Expr.Tup.snd (#Expr.Tup.fst (Tup fst) snd)
 
-(Div) = #Op λAdd #Op λSub #Op λMul #Op λDiv Div
+(Var) = λname #Expr λVar #Expr λNum #Expr λApp #Expr λFun #Expr λIf #Expr λLet #Expr λDup #Expr λTup #Expr λOp2 #Expr.Var.name (Var name)

@@ -1,0 +1,5 @@
+---
+source: tests/golden_tests.rs
+input_file: tests/golden_tests/run_file/tree_identity_match.hvm
+---
+(Both (Leaf 1) (Leaf 0))

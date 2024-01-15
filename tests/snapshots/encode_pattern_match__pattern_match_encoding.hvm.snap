@@ -2,10 +2,6 @@
 source: tests/golden_tests.rs
 input_file: tests/golden_tests/encode_pattern_match/pattern_match_encoding.hvm
 ---
-(Foo) = λx #MyType (x Foo$PA Foo$PB Foo$PC Foo$PD Foo$PE)
-
-(main) = (Foo A 2)
-
 (A) = λa #MyType λA #MyType λB #MyType λC #MyType λD #MyType λE #MyType.A.a (A a)
 
 (B) = λb #MyType λA #MyType λB #MyType λC #MyType λD #MyType λE #MyType.B.b (B b)
@@ -16,9 +12,7 @@ input_file: tests/golden_tests/encode_pattern_match/pattern_match_encoding.hvm
 
 (E) = λe1 λe2 #MyType λA #MyType λB #MyType λC #MyType λD #MyType λE #MyType.E.e2 (#MyType.E.e1 (E e1) e2)
 
-(Foo$R0) = λa 100
-
-(Foo$R1) = λ* 200
+(Foo) = λx #MyType (x Foo$PA Foo$PB Foo$PC Foo$PD Foo$PE)
 
 (Foo$PA) = #MyType.A.a λy0 (Foo$R0 *)
 
@@ -29,3 +23,13 @@ input_file: tests/golden_tests/encode_pattern_match/pattern_match_encoding.hvm
 (Foo$PD) = #MyType.D.d1 λy0 #MyType.D.d2 λy1 (Foo$R1 *)
 
 (Foo$PE) = #MyType.E.e1 λy0 #MyType.E.e2 λy1 (Foo$R1 *)
+
+(Foo$R0) = λa 100
+
+(Foo$R1) = λ* 200
+
+(SCons) = λhead λtail #String λSCons #String λSNil #String.SCons.tail (#String.SCons.head (SCons head) tail)
+
+(SNil) = #String λSCons #String λSNil SNil
+
+(main) = (Foo A 2)

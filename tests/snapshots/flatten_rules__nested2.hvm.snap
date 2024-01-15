@@ -2,7 +2,7 @@
 source: tests/golden_tests.rs
 input_file: tests/golden_tests/flatten_rules/nested2.hvm
 ---
-(Cons) = λh λt λ#List Cons λ#List Nil (#List.Cons.t (#List.Cons.h Cons h) t)
+(Cons) = λh λt #List λCons #List λNil #List.Cons.t (#List.Cons.h (Cons h) t)
 
 (Foo a (Cons b x$0)) = (Foo$F0 a b x$0)
 (Foo a b) = (a b)
@@ -10,4 +10,4 @@ input_file: tests/golden_tests/flatten_rules/nested2.hvm
 (Foo$F0 a b (Cons c d)) = (a b c d)
 (Foo$F0 a x$0 x$1) = (a (Cons x$0 x$1))
 
-(Nil) = λ#List Cons λ#List Nil Nil
+(Nil) = #List λCons #List λNil Nil

@@ -10,7 +10,6 @@ use net::{hvmc_to_net::hvmc_to_net, net_to_hvmc::nets_to_hvmc};
 use std::time::Instant;
 use term::{
   book_to_nets, net_to_term,
-  term_to_net::{Labels},
   Book, DefId, DefNames, ReadbackError, Term,
 };
 
@@ -19,6 +18,8 @@ pub mod net;
 pub mod term;
 
 pub use term::load_book::load_file_to_book;
+
+use crate::term::term_to_net::Labels;
 
 pub fn check_book(mut book: Book) -> Result<(), String> {
   // TODO: Do the checks without having to do full compilation
@@ -31,7 +32,9 @@ pub fn compile_book(book: &mut Book, opt_level: OptimizationLevel) -> Result<Com
   let (nets, labels) = book_to_nets(book, main);
   let mut core_book = nets_to_hvmc(nets)?;
   pre_reduce_book(&mut core_book, opt_level >= OptimizationLevel::Heavy)?;
-  prune_defs(&mut core_book);
+  if opt_level >= OptimizationLevel::Heavy {
+    prune_defs(&mut core_book);
+  }
   Ok(CompileResult { core_book, labels, warnings: vec![] })
 }
 
@@ -49,8 +52,12 @@ pub fn desugar_book(book: &mut Book, opt_level: OptimizationLevel) -> Result<Def
     book.eta_reduction();
   }
   book.detach_supercombinators();
-  book.simplify_ref_to_ref()?;
-  book.prune(&main);
+  if opt_level >= OptimizationLevel::Heavy {
+    book.simplify_ref_to_ref()?;
+  }
+  if opt_level >= OptimizationLevel::Heavy {
+    book.prune(&main);
+  }
   Ok(main)
 }
 

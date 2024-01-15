@@ -2,13 +2,13 @@
 source: tests/golden_tests.rs
 input_file: tests/golden_tests/compile_file/sum_predicates.hvm
 ---
-@3 = (?<(@6 @7) a> a)
-@5 = (?<(@3 @F) a> a)
-@6 = #0
-@7 = (a a)
-@A = (a a)
-@B = (a (<+ a b> b))
-@F = (a (?<(@A @B) (a b)> b))
 @main = a
-& @5 ~ (#8 (#5 a))
+& @sum_pred$match$3 ~ (#8 (#5 a))
+@sum_pred$match$1 = (?<(@sum_pred$match$1$R0 @sum_pred$match$1$R1) a> a)
+@sum_pred$match$1$R0 = #0
+@sum_pred$match$1$R1 = (a a)
+@sum_pred$match$2$R0 = (a a)
+@sum_pred$match$2$R1 = (a (<+ a b> b))
+@sum_pred$match$3 = (?<(@sum_pred$match$1 @sum_pred$match$3$R1) a> a)
+@sum_pred$match$3$R1 = (a (?<(@sum_pred$match$2$R0 @sum_pred$match$2$R1) (a b)> b))
 

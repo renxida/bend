@@ -4,6 +4,8 @@ use crate::{
   term::Pattern,
 };
 use std::collections::{HashMap, HashSet};
+use indexmap::IndexSet;
+
 
 // TODO: Display scopeless lambdas as such
 /// Converts an Interaction-INet to a Lambda Calculus term
@@ -21,7 +23,7 @@ pub fn net_to_term(net: &INet, book: &Book, labels: &Labels, linear: bool) -> (T
 
   let mut term = reader.read_term(net.enter_port(ROOT));
 
-  while let Some(node) = reader.scope.vec.pop() {
+  while let Some(node) = reader.scope.pop() {
     let val = reader.read_term(reader.net.enter_port(Port(node, 0)));
     let fst = reader.namegen.decl_name(net, Port(node, 1));
     let snd = reader.namegen.decl_name(net, Port(node, 2));
@@ -52,9 +54,7 @@ pub enum ReadbackError {
   InvalidBind,
   InvalidAdt,
   InvalidAdtMatch,
-  InvalidStrLen,
   InvalidStrTerm,
-  InvalidChar,
 }
 
 struct Reader<'a> {
@@ -158,9 +158,14 @@ impl<'a> Reader<'a> {
           }
           .unwrap_or_else(|| {
             // If no Dup with same label in the path, we can't resolve the Sup, so keep it as a term.
-            let fst = self.read_term(self.net.enter_port(Port(node, 1)));
-            let snd = self.read_term(self.net.enter_port(Port(node, 2)));
-            Term::Sup { tag: self.labels.dup.to_tag(Some(lab as u32)), fst: Box::new(fst), snd: Box::new(snd) }
+            self.decay_or_get_ports(node).map_or_else(
+              |(fst, snd)| Term::Sup {
+                tag: self.labels.dup.to_tag(Some(lab.into())),
+                fst: Box::new(fst),
+                snd: Box::new(snd),
+              },
+              |term| term,
+            )
           })
         }
         // If we're visiting a port 1 or 2, then it is a variable.
@@ -191,14 +196,9 @@ impl<'a> Reader<'a> {
       Rot => self.error(ReadbackError::ReachedRoot),
       Tup => match next.slot() {
         // If we're visiting a port 0, then it is a Tup.
-        0 => {
-          let fst = self.read_term(self.net.enter_port(Port(node, 1)));
-          let snd = self.read_term(self.net.enter_port(Port(node, 2)));
-          match snd {
-            Term::Lam { tag, bod, .. } if tag == Tag::str() => self.decode_str(fst, *bod),
-            snd => Term::Tup { fst: Box::new(fst), snd: Box::new(snd) },
-          }
-        }
+        0 => self
+          .decay_or_get_ports(node)
+          .map_or_else(|(fst, snd)| Term::Tup { fst: Box::new(fst), snd: Box::new(snd) }, |term| term),
         // If we're visiting a port 1 or 2, then it is a variable.
         1 | 2 => {
           self.scope.insert(node);
@@ -210,32 +210,90 @@ impl<'a> Reader<'a> {
 
     term
   }
+
+  /// Enters both ports 1 and 2 of a node,  
+  /// Returning a Term if is possible to simplify the net, or the Terms on the two ports of the node.  
+  /// The two possible outcomes are always equivalent.
+  ///   
+  /// If:  
+  ///  - The node Kind is CON/TUP/DUP  
+  ///  - Both ports 1 and 2 are connected to the same node on slots 1 and 2 respectively  
+  ///  - That node Kind is the same as the given node Kind  
+  ///
+  /// Then:  
+  ///   Reads the port 0 of the connected node, and returns that term.
+  ///
+  /// Otherwise:  
+  ///   Returns the terms on ports 1 and 2 of the given node.
+  ///
+  /// # Example
+  ///
+  /// ```text
+  /// // λa let (a, b) = a; (a, b)
+  /// ([a b] [a b])
+  ///
+  /// The node `(a, b)` is just a reconstruction of the destructuring of `a`,  
+  /// So we can skip both steps and just return the "value" unchanged:
+  ///
+  /// // λa a
+  /// (a a)
+  /// ```
+  ///
+  fn decay_or_get_ports(&mut self, node: NodeId) -> Result<Term, (Term, Term)> {
+    let fst_port = self.net.enter_port(Port(node, 1));
+    let snd_port = self.net.enter_port(Port(node, 2));
+
+    let node_kind = self.net.node(node).kind;
+
+    // This is not valid for all kinds of nodes, only CON/TUP/DUP, due to their interaction rules.
+    if matches!(node_kind, Con { .. } | Tup | Dup { .. }) {
+      match (fst_port, snd_port) {
+        (Port(fst_node, 1), Port(snd_node, 2)) if fst_node == snd_node => {
+          if self.net.node(fst_node).kind == node_kind {
+            self.scope.remove(&fst_node);
+
+            let port_zero = self.net.enter_port(Port(fst_node, 0));
+            let term = self.read_term(port_zero);
+            return Ok(term);
+          }
+        }
+        _ => {}
+      }
+    }
+
+    let fst = self.read_term(fst_port);
+    let snd = self.read_term(snd_port);
+    Err((fst, snd))
+  }
 }
 
 impl<'a> Reader<'a> {
-  fn decode_str(&mut self, fst: Term, bod: Term) -> Term {
-    let Term::Num { val: len } = fst else {
-      return self.error(ReadbackError::InvalidStrLen);
-    };
-    let mut s = String::with_capacity(len as usize);
-    let mut next = vec![bod];
-    while let Some(t) = next.pop() {
+  fn decode_str(&mut self, term: &mut Term) -> Term {
+    let mut s = String::new();
+    fn go(t: &mut Term, s: &mut String, rd: &mut Reader<'_>) {
       match t {
-        Term::Var { .. } => break, // reached the end of the str
-        Term::Tup { fst, snd } => {
-          let Term::Num { val } = *fst else {
-            return self.error(ReadbackError::InvalidChar);
-          };
-          if let Some(c) = char::from_u32(val as u32) {
-            s.push(c);
-            next.push(*snd);
-          } else {
-            self.errors.push(ReadbackError::InvalidChar);
-          }
+        Term::Num { val } => s.push(unsafe { char::from_u32_unchecked(*val as u32) }),
+        Term::Lam { bod, .. } => go(bod, s, rd),
+        Term::App { tag, arg, .. } if *tag == Tag::string_scons_head() => go(arg, s, rd),
+        Term::App { fun, arg, .. } => {
+          go(fun, s, rd);
+          go(arg, s, rd);
         }
-        _ => self.errors.push(ReadbackError::InvalidStrTerm),
+        Term::Var { .. } => {}
+        Term::Chn { .. }
+        | Term::Lnk { .. }
+        | Term::Let { .. }
+        | Term::Tup { .. }
+        | Term::Dup { .. }
+        | Term::Sup { .. }
+        | Term::Str { .. }
+        | Term::Opx { .. }
+        | Term::Match { .. }
+        | Term::Ref { .. }
+        | Term::Era => rd.error(ReadbackError::InvalidStrTerm),
       }
     }
+    go(term, &mut s, self);
     Term::Str { val: s }
   }
 }
@@ -299,20 +357,7 @@ impl Term {
   }
 }
 
-#[derive(Default)]
-struct Scope {
-  vec: Vec<NodeId>,
-  set: HashSet<NodeId>,
-}
-
-impl Scope {
-  fn insert(&mut self, node: NodeId) {
-    if !self.set.contains(&node) {
-      self.set.insert(node);
-      self.vec.push(node);
-    }
-  }
-}
+type Scope = IndexSet<NodeId>;
 
 #[derive(Default)]
 struct NameGen {
@@ -445,6 +490,7 @@ impl<'a> Reader<'a> {
   }
   fn resugar_adts(&mut self, term: &mut Term) {
     match term {
+      Term::Lam { tag, bod, .. } if *tag == Tag::string() => *term = self.decode_str(bod),
       Term::Lam { tag: Tag::Named(adt_name), bod, .. } | Term::Chn { tag: Tag::Named(adt_name), bod, .. } => {
         let Some((adt_name, adt)) = self.book.adts.get_key_value(adt_name) else {
           return self.resugar_adts(bod);

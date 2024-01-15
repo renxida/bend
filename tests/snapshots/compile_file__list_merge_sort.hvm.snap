@@ -2,27 +2,27 @@
 source: tests/golden_tests.rs
 input_file: tests/golden_tests/compile_file/list_merge_sort.hvm
 ---
-@Cons = (a (b {4 {8 a {6 b c}} {4 * c}}))
-@F = (a (* a))
-@G = (* (a a))
-@J = (* @Nil)
-@L = {8 a {6 {4 @L {4 @J (b c)}} ({3 b (a d)} {4 {8 d {6 c e}} {4 * e}})}}
-@MergeSort = (a ({4 @L {4 @J (@Pure {4 @Q {4 @R (a b)}})}} b))
-@Nil = {4 * {4 a a}}
-@Pure = (a {4 {8 a {6 @Nil b}} {4 * b}})
-@Q = {8 a {6 {4 @i {4 @j (b (a c))}} (b c)}}
-@R = (* @Nil)
-@V = {8 a {6 {4 @o {4 @p (b (a c))}} (b c)}}
-@W = (* @Nil)
-@b = {8 {15 a {17 b c}} {6 {19 {4 @b {4 @c (d (e (f g)))}} h} ({5 d {7 i (j (c {2 @F {2 @G ({4 {8 k {6 l m}} {4 * m}} ({4 {8 a {6 g n}} {4 * n}} o))}}))}} ({9 e {11 k j}} ({13 f {4 @d {4 @e (i ({4 {8 b {6 h p}} {4 * p}} l))}}} o)))}}
-@c = (* @s)
-@d = {8 a {6 b (c ({4 @b {4 @c (c (a (b d)))}} d))}}
-@e = (* (a a))
-@i = {8 a {6 {4 @V {4 @W (b {4 @i {4 @j (c (d e))}})}} ({21 {23 b f} c} ({4 @d {4 @e (f (a d))}} e))}}
-@j = (* (a a))
+@Cons = (a (b {2 {6 a {4 b c}} {2 * c}}))
+@If$R0 = (a (* a))
+@If$R1 = (* (a a))
+@Map$PCons = {6 a {4 {2 @Map$PCons {2 @Map$R0 (b c)}} ({3 b (a d)} {2 {6 d {4 c e}} {2 * e}})}}
+@Map$R0 = (* @Nil)
+@Merge$P$PCons = {6 a {4 b (c ({2 @Merge$P$PCons$PCons {2 @Merge$P$PCons$PNil (c (a (b d)))}} d))}}
+@Merge$P$PCons$PCons = {6 {15 a {17 b c}} {4 {19 {2 @Merge$P$PCons$PCons {2 @Merge$P$PCons$PNil (d (e (f g)))}} h} ({5 d {7 i (j (c {8 @If$R0 {8 @If$R1 ({2 {6 k {4 l m}} {2 * m}} ({2 {6 a {4 g n}} {2 * n}} o))}}))}} ({9 e {11 k j}} ({13 f {2 @Merge$P$PCons {2 @Merge$P$PNil (i ({2 {6 b {4 h p}} {2 * p}} l))}}} o)))}}
+@Merge$P$PCons$PNil = (* @Merge$P$PCons$PNil$S0)
+@Merge$P$PCons$PNil$S0 = (a (b {2 {6 a {4 b c}} {2 * c}}))
+@Merge$P$PNil = (* (a a))
+@MergePair$F0$P$P$PCons = {6 a {4 {2 @MergePair$P$PCons {2 @MergePair$P$PNil (b c)}} ({21 b d} ({2 @Merge$P$PCons {2 @Merge$P$PNil (d (a e))}} {2 {6 e {4 c f}} {2 * f}}))}}
+@MergePair$F0$P$P$PNil = (* @MergePair$F0$P$P$PNil$S0)
+@MergePair$F0$P$P$PNil$S0 = (a {2 {6 a {4 @Nil b}} {2 * b}})
+@MergePair$P$PCons = {6 a {4 {2 @MergePair$F0$P$P$PCons {2 @MergePair$F0$P$P$PNil (b (a c))}} (b c)}}
+@MergePair$P$PNil = (* @Nil)
+@MergeSort = (a ({2 @Map$PCons {2 @Map$R0 (@Pure {2 @Unpack$P$PCons {2 @Unpack$P$PNil (a b)}})}} b))
+@Nil = {2 * {2 a a}}
+@Pure = (a {2 {6 a {4 @Nil b}} {2 * b}})
+@Unpack$F0$P$P$PCons = {6 a {4 {2 @MergePair$P$PCons {2 @MergePair$P$PNil (b {2 @Unpack$F0$P$P$PCons {2 @Unpack$F0$P$P$PNil (c (d e))}})}} ({23 {21 b f} c} ({2 @Merge$P$PCons {2 @Merge$P$PNil (f (a d))}} e))}}
+@Unpack$F0$P$P$PNil = (* (a a))
+@Unpack$P$PCons = {6 a {4 {2 @Unpack$F0$P$P$PCons {2 @Unpack$F0$P$P$PNil (b (a c))}} (b c)}}
+@Unpack$P$PNil = (* @Nil)
 @main = @MergeSort
-@o = {8 a {6 {4 @V {4 @W (b c)}} ({23 b d} ({4 @d {4 @e (d (a e))}} {4 {8 e {6 c f}} {4 * f}}))}}
-@p = (* @t)
-@s = (a (b {4 {8 a {6 b c}} {4 * c}}))
-@t = (a {4 {8 a {6 @Nil b}} {4 * b}})
 

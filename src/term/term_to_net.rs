@@ -19,7 +19,7 @@ pub fn book_to_nets(book: &Book, main: DefId) -> (HashMap<String, INet>, Labels)
       let name = if def.def_id == main {
         DefNames::ENTRY_POINT.to_string()
       } else {
-        def_id_to_hvmc_name(book, &def.def_id, &nets)
+        def_id_to_hvmc_name(&def.def_id)
       };
 
       nets.insert(name, net);
@@ -32,8 +32,12 @@ pub fn book_to_nets(book: &Book, main: DefId) -> (HashMap<String, INet>, Labels)
   (nets, labels)
 }
 
-fn def_id_to_hvmc_name(book: &Book, def_id: &DefId, nets: &HashMap<String, INet>) -> String {
-  def_id.0.clone()
+fn def_id_to_hvmc_name(def_id: &DefId) -> String {
+  if def_id.0 == DefNames::HVM1_ENTRY_POINT {
+    String::from(DefNames::ENTRY_POINT)
+  } else {
+    def_id.0.clone()
+  }
 }
 
 /// Converts an IC term into an IC net.
@@ -176,7 +180,7 @@ impl<'a> EncodeTermState<'a> {
       }
       // core: @def_id
       Term::Ref { def_id } => {
-        let node = self.inet.new_node(Ref { def_id: def_id.clone() });
+        let node = self.inet.new_node(Ref { def_id: DefId(def_id_to_hvmc_name(&def_id)) });
         self.inet.link(Port(node, 1), Port(node, 2));
         self.inet.link(up, Port(node, 0));
         Some(Port(node, 0))

@@ -110,7 +110,7 @@ fn compile_file_o0() {
 }
 
 #[test]
-fn run_single_files() {
+fn run_file() {
   run_golden_test_dir(function_name!(), &|code| {
     let book = do_parse_book(code)?;
     // 1 million nodes for the test runtime. Smaller doesn't seem to make it any faster
@@ -160,6 +160,7 @@ fn encode_pattern_match() {
   run_golden_test_dir(function_name!(), &|code| {
     let mut book = do_parse_book(code)?;
     book.check_shared_names()?;
+    book.encode_strs();
     book.generate_scott_adts();
     book.resolve_refs();
     encode_pattern_matching(&mut book)?;

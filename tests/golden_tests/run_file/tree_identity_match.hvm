@@ -1,0 +1,17 @@
+//  hvm-lang pre-reduce with Hvm-core 0.2.14 bug
+data Tree = (Leaf a) | (Both a b)
+
+(Id (Leaf a))   = (Leaf a)
+(Id (Both a b)) = (Both a b)
+
+(Sort (Leaf a))   = (Leaf a)
+(Sort (Both a b)) = (Id (Both (Sort a) (Sort b)))
+// (Sort (Both a b)) = ((Both (Sort a) (Sort b)))
+
+// Removing the Id call fixes the output from:
+//
+// #Tree.Both.a λa #Tree.Both.b λb (Both a b)
+// -------------------->
+// (Both (Leaf 1) (Leaf 0))
+
+Main = (Sort (Both (Leaf 1) (Leaf 0)))
