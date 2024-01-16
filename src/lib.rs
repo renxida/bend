@@ -1,6 +1,7 @@
 #![feature(box_patterns)]
 #![feature(return_position_impl_trait_in_trait)]
 
+use borrowed_box::BorrowedBox;
 use hvmc::{
   ast::{show_book, Host, Net, show_net},
   run::{Area, Rewrites, Net as RtNet},
@@ -13,6 +14,7 @@ use term::{
   Book, DefId, DefNames, ReadbackError, Term,
 };
 
+pub mod borrowed_box;
 pub mod hvmc_net;
 pub mod net;
 pub mod term;
@@ -103,34 +105,29 @@ pub fn run_book(
   let debug_hook =
     if debug { Some(|net: &_| debug_hook(net, &book, &labels, linear)) } else { None };
 
-  let (res_lnet, stats) = run_compiled(&core_book, mem_size, parallel, debug_hook, &labels, &book);
-  let net = hvmc_to_net(&res_lnet);
-  let (res_term, readback_errors) = net_to_term(&net, &book, &labels, linear);
-  let info = RunInfo { stats, readback_errors, net: res_lnet };
-  Ok((res_term, book.def_names, info))
+  let host = Host::new(&core_book);
+  let ((area, mut res_inet), stats) = run_compiled(&host, mem_size, parallel, debug_hook);
+  let res_term = crate::term::readback::readback_and_resugar(&mut res_inet, &labels, &host, &book);
+  let info = RunInfo { stats, readback_errors: vec![], net: Net::default() };
+  area.place_option(&mut None);
+  Ok((*res_term, book.def_names, info))
 }
 
-pub fn run_compiled(
-  book: &hvmc::ast::Book,
+pub fn run_compiled<'t>(
+  host: &Host,
   mem_size: usize,
   parallel: bool,
   hook: Option<impl FnMut(&Net)>,
-  labels: &Labels,
-  q_book: &Book
-) -> (Net, RunStats) {
+) -> ((BorrowedBox<'t, Box<Area>>, RtNet<'t>), RunStats) {
 
-  let host = Host::new(book);
-  let heap = RtNet::init_heap(mem_size);
-  let mut root = RtNet::new(&heap);
+  let (heap_ref, heap_own) = BorrowedBox::new(RtNet::init_heap(mem_size));
+  // Weaken reference so we can share it.
+  let heap_ref: &'t Area = heap_ref;
+  let mut root = RtNet::new(&heap_ref);
   // Expect won't be reached because there's
   // a pass that checks this.
   root.boot(host.defs.get(DefNames::ENTRY_POINT).expect("No main function."));
   
-  println!("{}",
-    crate::term::readback::readback(&mut root, labels, &host, q_book)
-      .display(&q_book.def_names)
-  );
-
 
   let start_time = Instant::now();
   
@@ -152,14 +149,12 @@ pub fn run_compiled(
 
   let rwts = root.rwts;
   let net = host.readback(&root);
-  let term = crate::term::readback::readback(&mut root, labels, &host, q_book);
-  println!("{}", term.display(&q_book.def_names));
 
   // TODO I don't quite understand this code
   // How would it be implemented in the new version?
   // let def = runtime_net_to_runtime_def(&root);
   let stats = RunStats { rewrites: rwts, used: 0, run_time: elapsed };
-  (net, stats)
+  ((heap_own, root), stats)
 }
 
 pub fn total_rewrites(rwrts: &Rewrites) -> usize {

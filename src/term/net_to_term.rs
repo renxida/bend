@@ -360,14 +360,14 @@ impl Term {
 type Scope = IndexSet<NodeId>;
 
 #[derive(Default)]
-struct NameGen {
-  var_port_to_id: HashMap<Port, u64>,
-  id_counter: u64,
+pub struct NameGen {
+  pub var_port_to_id: HashMap<Port, u64>,
+  pub id_counter: u64,
 }
 
 impl NameGen {
   // Given a port, returns its name, or assigns one if it wasn't named yet.
-  fn var_name(&mut self, var_port: Port) -> Name {
+  pub fn var_name(&mut self, var_port: Port) -> Name {
     let id = self.var_port_to_id.entry(var_port).or_insert_with(|| {
       let id = self.id_counter;
       self.id_counter += 1;
@@ -377,14 +377,14 @@ impl NameGen {
     Name::from_num(*id)
   }
 
-  fn decl_name(&mut self, net: &INet, var_port: Port) -> Option<Name> {
+  pub fn decl_name(&mut self, net: &INet, var_port: Port) -> Option<Name> {
     // If port is linked to an erase node, return an unused variable
     let var_use = net.enter_port(var_port);
     let var_kind = net.node(var_use.node()).kind;
     if let Era = var_kind { None } else { Some(self.var_name(var_port)) }
   }
 
-  fn unique(&mut self) -> Name {
+  pub fn unique(&mut self) -> Name {
     let id = self.id_counter;
     self.id_counter += 1;
     Name::from_num(id)
