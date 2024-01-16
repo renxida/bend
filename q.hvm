@@ -1,0 +1,1 @@
+main = λx λy λz (x z (y z))

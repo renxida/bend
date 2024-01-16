@@ -103,7 +103,7 @@ pub fn run_book(
   let debug_hook =
     if debug { Some(|net: &_| debug_hook(net, &book, &labels, linear)) } else { None };
 
-  let (res_lnet, stats) = run_compiled(&core_book, mem_size, parallel, debug_hook);
+  let (res_lnet, stats) = run_compiled(&core_book, mem_size, parallel, debug_hook, &labels, &book);
   let net = hvmc_to_net(&res_lnet);
   let (res_term, readback_errors) = net_to_term(&net, &book, &labels, linear);
   let info = RunInfo { stats, readback_errors, net: res_lnet };
@@ -115,6 +115,8 @@ pub fn run_compiled(
   mem_size: usize,
   parallel: bool,
   hook: Option<impl FnMut(&Net)>,
+  labels: &Labels,
+  q_book: &Book
 ) -> (Net, RunStats) {
 
   let host = Host::new(book);
@@ -124,6 +126,11 @@ pub fn run_compiled(
   // a pass that checks this.
   root.boot(host.defs.get(DefNames::ENTRY_POINT).expect("No main function."));
   
+  println!("{}",
+    crate::term::readback::readback(&mut root, labels, &host, q_book)
+      .display(&q_book.def_names)
+  );
+
 
   let start_time = Instant::now();
   
@@ -140,13 +147,18 @@ pub fn run_compiled(
     root.normal()
   }
 
+
   let elapsed = start_time.elapsed().as_secs_f64();
 
+  let rwts = root.rwts;
   let net = host.readback(&root);
+  let term = crate::term::readback::readback(&mut root, labels, &host, q_book);
+  println!("{}", term.display(&q_book.def_names));
+
   // TODO I don't quite understand this code
   // How would it be implemented in the new version?
   // let def = runtime_net_to_runtime_def(&root);
-  let stats = RunStats { rewrites: root.rwts, used: 0, run_time: elapsed };
+  let stats = RunStats { rewrites: rwts, used: 0, run_time: elapsed };
   (net, stats)
 }
 

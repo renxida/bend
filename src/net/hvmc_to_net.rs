@@ -10,6 +10,7 @@ pub fn hvmc_to_net(net: &Net) -> INet {
 }
 
 fn hvmc_to_inodes(net: &Net) -> INodes {
+
   let mut inodes = vec![];
   let mut n_vars = 0;
   let net_root = if let Tree::Var { nam } = &net.root { nam } else { "" };

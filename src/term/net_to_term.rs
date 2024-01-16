@@ -424,7 +424,7 @@ impl Book {
 }
 
 impl Term {
-  fn fix_names(&mut self, id_counter: &mut u64, book: &Book) {
+  pub fn fix_names(&mut self, id_counter: &mut u64, book: &Book) {
     fn fix_name(nam: &mut Option<Name>, id_counter: &mut u64, bod: &mut Term) {
       if let Some(nam) = nam {
         let name = Name::from_num(*id_counter);

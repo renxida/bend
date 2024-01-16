@@ -1,0 +1,6 @@
+---
+source: tests/golden_tests.rs
+assertion_line: 51
+input_file: tests/golden_tests/run_file/repeated_name_trucation.hvm
+---
+main_long_name_that_truncates_to_main

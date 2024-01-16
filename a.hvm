@@ -1,1 +1,9 @@
-Main = λx x
+data Option = (Some val) | None
+
+(Num (Some v)) = (+ v 1)
+(Num None) = 0
+
+main = λa λx match x {
+	0: (+ 0 1)
+	+: a
+}
