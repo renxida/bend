@@ -202,7 +202,7 @@ impl<'book, 'area, 'term> Reader<'book, 'area, 'term> {
         let snd = Box::new(self.unfilled_term());
 
         let out = Term::Opx { op: Op::from_hvmc_label(port.lab.try_into().unwrap()).unwrap(), fst, snd };
-        let (out_ref, out_box) = LoanedMut::new(Box::new(out));
+        let (out_ref, out_box) = LoanedMut::loan(Box::new(out));
         let Term::Opx { fst, snd, .. } = out_ref else { unreachable!() };
         term.place(fst);
         self.read_neg(port.p1, snd);
@@ -216,10 +216,10 @@ impl<'book, 'area, 'term> Reader<'book, 'area, 'term> {
         let scrut = Box::new(self.unfilled_term());
         let pred = self.generate_name();
         let pred_var = Term::Var { nam: pred.clone() };
-        let (_pred_ref, pred_box) = LoanedMut::new(Box::new(pred_var));
+        let (_pred_ref, pred_box) = LoanedMut::loan(Box::new(pred_var));
         /*
-        let (zero_ref, zero_box) = LoanedMut::new(Box::new(zero));
-        let (succ_ref, succ_box) = LoanedMut::new(Box::new(succ));
+        let (zero_ref, zero_box) = LoanedMut::loan(Box::new(zero));
+        let (succ_ref, succ_box) = LoanedMut::loan(Box::new(succ));
         self.read_neg(port.p1.load_target().traverse_node().p1, zero_ref);
         self.read_neg(port.p1.load_target().traverse_node().p2, succ_ref);
         */
@@ -238,7 +238,7 @@ impl<'book, 'area, 'term> Reader<'book, 'area, 'term> {
             }),
           ],
         };
-        let (mat_ref, mat_box) = LoanedMut::new(Box::new(mat));
+        let (mat_ref, mat_box) = LoanedMut::loan(Box::new(mat));
         let Term::Match { scrutinee, arms } = mat_ref else { unreachable!() };
         term.place(scrutinee);
         let (zero, succ) = arms.split_at_mut(1);
@@ -274,7 +274,7 @@ impl<'book, 'area, 'term> Reader<'book, 'area, 'term> {
             self.labels.con.to_tag(if port.lab == 0 { None } else { Some((port.lab as u32 >> 1) - 1) });
 
           let out = Term::App { tag, fun, arg };
-          let (out_ref, out_box) = LoanedMut::new(Box::new(out));
+          let (out_ref, out_box) = LoanedMut::loan(Box::new(out));
           let Term::App { fun, arg, .. } = out_ref else { unreachable!() };
           term.place(fun);
           self.read_neg(port.p1, arg);
@@ -292,8 +292,8 @@ impl<'book, 'area, 'term> Reader<'book, 'area, 'term> {
           let fst_var = Term::Var { nam: fst.clone() };
           let snd = self.generate_name();
           let snd_var = Term::Var { nam: snd.clone() };
-          let (_fst_ref, fst_box) = LoanedMut::new(Box::new(fst_var));
-          let (_snd_ref, snd_box) = LoanedMut::new(Box::new(snd_var));
+          let (_fst_ref, fst_box) = LoanedMut::loan(Box::new(fst_var));
+          let (_snd_ref, snd_box) = LoanedMut::loan(Box::new(snd_var));
           let out = Term::Dup {
             tag,
             fst: Some(fst),
@@ -301,7 +301,7 @@ impl<'book, 'area, 'term> Reader<'book, 'area, 'term> {
             val: Box::new(self.unfilled_term()),
             nxt: Box::new(self.unfilled_term()),
           };
-          let (out_ref, out_box) = LoanedMut::new(Box::new(out));
+          let (out_ref, out_box) = LoanedMut::loan(Box::new(out));
           let Term::Dup { tag: _, fst, snd, val, nxt: _ } = out_ref else { unreachable!() };
           self.read_pos(port.p1, TermHole::Variable(fst_box.into(), fst));
           self.read_pos(port.p2, TermHole::Variable(snd_box.into(), snd));
@@ -362,7 +362,7 @@ impl<'book, 'area, 'term> Reader<'book, 'area, 'term> {
           // Even labels are CON
           let nam = self.generate_name();
           let var = Term::Var { nam: nam.clone() };
-          let (_var_ref, var_box) = LoanedMut::new(Box::new(var));
+          let (_var_ref, var_box) = LoanedMut::loan(Box::new(var));
 
           let tag =
             self.labels.con.to_tag(if port.lab == 0 { None } else { Some((port.lab as u32 >> 1) - 1) });

@@ -34,7 +34,7 @@ fn def_id_to_hvmc_name(def_id: &DefId) -> String {
   if def_id.0 == DefNames::HVM1_ENTRY_POINT { String::from(DefNames::ENTRY_POINT) } else { def_id.0.clone() }
 }
 
-/// Converts an IC term into an IC net.
+/// Converts an IC term into an hvm-core net.
 pub fn term_to_compat_net(term: &Term, labels: &mut Labels) -> hvmc::ast::Net {
   let mut encoder = Encoder {
     global_vars: IndexMap::new(),
@@ -45,27 +45,26 @@ pub fn term_to_compat_net(term: &Term, labels: &mut Labels) -> hvmc::ast::Net {
   };
 
   let root = Box::new(Box::new(encoder.unfilled_tree()));
-  let (root_ref, root_own) = LoanedMut::new(root);
+  let (root_ref, root_own) = LoanedMut::loan(root);
 
   encoder.encode_term(term, Place::Hole(root_ref));
   let loaned_redexes: Vec<(LoanedMut<'_, Box<Tree>>, LoanedMut<'_, Box<Tree>>)> =
     encoder.redexes.drain(..).collect();
-  drop(encoder);
-
-  let mut places: Vec<(Option<Box<Tree>>, Option<Box<Tree>>)> = vec![];
-  {
-    let loaned_redexes = loaned_redexes;
-    places.resize(loaned_redexes.len(), (None, None));
-    let i = loaned_redexes.into_iter().zip(places.iter_mut());
-    for ((x, y), (a, b)) in i {
-      x.place(a);
-      y.place(b);
+  let loaned_redexes = LoanedMut::<Vec<(Box<Tree>, Box<Tree>)>>::aggregate(Default::default(), |mut vec, agg| {
+    vec.resize(loaned_redexes.len(), Default::default());
+    for (i, p) in vec.iter_mut().zip(loaned_redexes) {
+      agg.place(p.0, &mut i.0);
+      agg.place(p.1, &mut i.1);
     }
-  }
+  });
+  drop(encoder);
+  let mut loaned_redexes = loaned::take!(loaned_redexes);
+
+
   let mut root_hole = Box::new(Box::new(Tree::Era));
   root_own.place(&mut root_hole);
 
-  Net { root: **root_hole, rdex: places.drain(..).map(|(a, b)| (*a.unwrap(), *b.unwrap())).collect() }
+  Net { root: **root_hole, rdex: loaned_redexes.drain(..).map(|(a, b)| (*a, *b)).collect() }
 }
 
 #[derive(Debug)]
@@ -145,7 +144,7 @@ impl<'t, 'l> Encoder<'t, 'l> {
     Tree::Var { nam: self.generate_string() }
   }
   fn erase(&mut self, term: Place<'t>) {
-    self.link(term, Place::Tree(LoanedMut::new(Box::new(Tree::Era)).1))
+    self.link(term, Place::Tree(LoanedMut::new(Box::new(Tree::Era))))
   }
   fn link(&mut self, a: Place<'t>, b: Place<'t>) {
     match (a, b) {
@@ -201,7 +200,7 @@ impl<'t, 'l> Encoder<'t, 'l> {
       Term::Chn { tag, nam, bod } => {
         let lab = (self.labels.con.generate(tag).unwrap_or(0) << 1) as u16;
         let (tree_ref, tree_box) =
-          LoanedMut::new(Box::new(Tree::Ctr { lab, lft: Default::default(), rgt: Default::default() }));
+          LoanedMut::loan(Box::new(Tree::Ctr { lab, lft: Default::default(), rgt: Default::default() }));
         let Tree::Ctr { lft, rgt, .. } = tree_ref else { unreachable!() };
         self.link(place, Place::Tree(tree_box));
         self.set_global_var(nam.clone(), Place::Hole(lft));
@@ -213,7 +212,7 @@ impl<'t, 'l> Encoder<'t, 'l> {
       Term::Lam { tag, nam, bod } => {
         let lab = (self.labels.con.generate(tag).unwrap_or(0) << 1) as u16;
         let (tree_ref, tree_box) =
-          LoanedMut::new(Box::new(Tree::Ctr { lab, lft: Default::default(), rgt: Default::default() }));
+          LoanedMut::loan(Box::new(Tree::Ctr { lab, lft: Default::default(), rgt: Default::default() }));
         let Tree::Ctr { lft, rgt, .. } = tree_ref else { unreachable!() };
         self.link(place, Place::Tree(tree_box));
         if let Some(nam) = nam {
@@ -227,7 +226,7 @@ impl<'t, 'l> Encoder<'t, 'l> {
       Term::App { tag, fun, arg } => {
         let lab = (self.labels.con.generate(tag).unwrap_or(0) << 1) as u16;
         let (tree_ref, tree_box) =
-          LoanedMut::new(Box::new(Tree::Ctr { lab, lft: Default::default(), rgt: Default::default() }));
+          LoanedMut::loan(Box::new(Tree::Ctr { lab, lft: Default::default(), rgt: Default::default() }));
         let Tree::Ctr { lft, rgt, .. } = tree_ref else { unreachable!() };
         self.link(place, Place::Hole(rgt));
         self.encode_term(fun.as_ref(), Place::Tree(tree_box));
@@ -236,7 +235,7 @@ impl<'t, 'l> Encoder<'t, 'l> {
       Term::Dup { tag, fst, snd, val, nxt } => {
         let lab = (self.labels.dup.generate(tag).unwrap_or(0) << 1 + 3) as u16;
         let (tree_ref, tree_box) =
-          LoanedMut::new(Box::new(Tree::Ctr { lab, lft: Default::default(), rgt: Default::default() }));
+          LoanedMut::loan(Box::new(Tree::Ctr { lab, lft: Default::default(), rgt: Default::default() }));
         let Tree::Ctr { lft, rgt, .. } = tree_ref else { unreachable!() };
         self.encode_term(val, Place::Tree(tree_box));
         if let Some(fst) = fst {
@@ -254,12 +253,12 @@ impl<'t, 'l> Encoder<'t, 'l> {
         }
       }
       Term::Ref { def_id } => {
-        self.link(place, Place::Tree(LoanedMut::new(Box::new(Tree::Ref { nam: def_id.0.clone() })).1))
+        self.link(place, Place::Tree(LoanedMut::new(Box::new(Tree::Ref { nam: def_id.0.clone() }))))
       }
       Term::Sup { tag, fst, snd } => {
         let lab = (self.labels.dup.generate(tag).unwrap_or(0) << 1 + 3) as u16;
         let (tree_ref, tree_box) =
-          LoanedMut::new(Box::new(Tree::Ctr { lab, lft: Default::default(), rgt: Default::default() }));
+          LoanedMut::loan(Box::new(Tree::Ctr { lab, lft: Default::default(), rgt: Default::default() }));
         let Tree::Ctr { lft, rgt, .. } = tree_ref else { unreachable!() };
         self.encode_term(fst, Place::Hole(lft));
         self.encode_term(snd, Place::Hole(rgt));
@@ -268,7 +267,7 @@ impl<'t, 'l> Encoder<'t, 'l> {
       Term::Tup { fst, snd } => {
         let lab = 1;
         let (tree_ref, tree_box) =
-          LoanedMut::new(Box::new(Tree::Ctr { lab, lft: Default::default(), rgt: Default::default() }));
+          LoanedMut::loan(Box::new(Tree::Ctr { lab, lft: Default::default(), rgt: Default::default() }));
         let Tree::Ctr { lft, rgt, .. } = tree_ref else { unreachable!() };
         self.encode_term(fst, Place::Hole(lft));
         self.encode_term(snd, Place::Hole(rgt));
@@ -278,11 +277,11 @@ impl<'t, 'l> Encoder<'t, 'l> {
         self.erase(place);
       }
       Term::Num { val } => {
-        let tree_own = LoanedMut::new(Box::new(Tree::Num { val: *val })).1;
+        let tree_own = LoanedMut::new(Box::new(Tree::Num { val: *val }));
         self.link(Place::Tree(tree_own), place);
       }
       Term::Opx { op, fst, snd } => {
-        let (tree_ref, tree_box) = LoanedMut::new(Box::new(Tree::Op2 {
+        let (tree_ref, tree_box) = LoanedMut::loan(Box::new(Tree::Op2 {
           opr: op.to_hvmc_label(),
           lft: Default::default(),
           rgt: Default::default(),
@@ -300,7 +299,7 @@ impl<'t, 'l> Encoder<'t, 'l> {
         let zero = &arms[0].1;
         let succ = &arms[1].1;
 
-        let (tree_ref, tree_box) = LoanedMut::new(Box::new(Tree::Mat {
+        let (tree_ref, tree_box) = LoanedMut::loan(Box::new(Tree::Mat {
           sel: Box::new(Tree::Ctr { lab: 0, lft: Default::default(), rgt: Default::default() }),
           ret: Default::default(),
         }));

@@ -112,7 +112,7 @@ pub fn run_compiled<'t>(
   parallel: bool,
   hook: Option<impl FnMut(&Net)>,
 ) -> ((LoanedMut<'t, Box<Box<Area>>>, RtNet<'t>), RunStats) {
-  let (heap_ref, heap_own) = LoanedMut::new(Box::new(RtNet::init_heap(mem_size)));
+  let (heap_ref, heap_own) = LoanedMut::loan(Box::new(RtNet::init_heap(mem_size)));
   // Weaken reference so we can share it.
   let heap_ref: &'t Area = heap_ref;
   let mut root = RtNet::new(&heap_ref);

@@ -289,7 +289,7 @@ checksum = "0717cef1bc8b636c6e1c1bbdefc09e6322da8a9321966e8928ef80d20f7f770f"
 [[package]]
 name = "loaned"
 version = "0.0.0"
-source = "git+https://github.com/tjjfvi/loaned.git#e9fe524bf4786edd02f18e07bd4f958ab5a9cf23"
+source = "git+https://github.com/tjjfvi/loaned.git#617e54aa267acd1324828af6db1396a4de900761"
 
 [[package]]
 name = "logos"
