@@ -1,23 +1,21 @@
 #![feature(box_patterns)]
 #![feature(return_position_impl_trait_in_trait)]
 
+use std::time::Instant;
+
 use hvmc::{
   ast::{show_book, Host, Net},
   run::{Area, Net as RtNet, Rewrites},
 };
 use hvmc_net::{pre_reduce::pre_reduce_book, prune::prune_defs};
 use loaned::LoanedMut;
-use net::hvmc_to_net::hvmc_to_net;
-use std::time::Instant;
-use term::{encoder::book_to_tree, net_to_term, Book, DefId, DefNames, ReadbackError, Term};
+use term::{encoder::{book_to_tree, Labels}, Book, DefId, DefNames, ReadbackError, Term};
 
 pub mod hvmc_net;
-pub mod net;
 pub mod term;
 
 pub use term::load_book::load_file_to_book;
 
-use crate::term::term_to_net::Labels;
 
 pub fn check_book(mut book: Book) -> Result<(), String> {
   // TODO: Do the checks without having to do full compilation
@@ -87,7 +85,7 @@ pub fn run_book(
     }
     return Err("Could not run the code because of the previous warnings".into());
   }
-
+/*
   fn debug_hook(net: &Net, book: &Book, labels: &Labels, linear: bool) {
     let net = hvmc_to_net(net);
     let (res_term, errors) = net_to_term(&net, book, labels, linear);
@@ -98,7 +96,8 @@ pub fn run_book(
     );
   }
   let debug_hook = if debug { Some(|net: &_| debug_hook(net, &book, &labels, linear)) } else { None };
-
+*/
+  let debug_hook = Some(|a: &hvmc::ast::Net| ());
   let host = Host::new(&core_book);
   let ((area, mut res_inet), stats) = run_compiled(&host, mem_size, parallel, debug_hook);
   let res_term = crate::term::readback::readback_and_resugar(&mut res_inet, &labels, &host, &book);

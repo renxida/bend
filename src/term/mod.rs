@@ -7,15 +7,9 @@ pub mod check;
 pub mod display;
 pub mod encoder;
 pub mod load_book;
-pub mod net_to_term;
 pub mod parser;
 pub mod readback;
-pub mod resugar;
-pub mod term_to_net;
 pub mod transform;
-
-pub use net_to_term::{net_to_term, ReadbackError};
-pub use term_to_net::{book_to_nets, term_to_compat_net};
 
 /// The representation of a program.
 #[derive(Debug, Clone, Default)]
@@ -32,6 +26,19 @@ pub struct Book {
   /// To which type does each constructor belong to.
   pub ctrs: HashMap<Name, Name>,
 }
+
+
+#[derive(Debug)]
+pub enum ReadbackError {
+  InvalidNumericMatch,
+  ReachedRoot,
+  Cyclic,
+  InvalidBind,
+  InvalidAdt,
+  InvalidAdtMatch,
+  InvalidStrTerm,
+}
+
 
 #[derive(Debug, Clone, Default)]
 pub struct DefNames {

@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 use hvmc::ast::{num_to_str, Net, Tree};
 
@@ -7,7 +7,7 @@ use loaned::LoanedMut;
 
 use crate::term::{MatchNum, Pattern};
 
-use super::{term_to_net::Labels, Book, DefId, DefNames, Name, Term};
+use super::{Book, DefId, DefNames, Name, Term, Tag, Op};
 
 pub fn book_to_tree(book: &Book, main: DefId) -> hvmc::ast::Book {
   let mut nets = BTreeMap::new();
@@ -80,6 +80,60 @@ struct Encoder<'t, 'l> {
   redexes: Vec<(LoanedMut<'t, Box<Tree>>, LoanedMut<'t, Box<Tree>>)>,
   name_idx: usize,
   labels: &'l mut Labels,
+}
+
+#[derive(Debug, Default)]
+pub struct Labels {
+  pub con: LabelGenerator,
+  pub dup: LabelGenerator,
+}
+
+#[derive(Debug, Default)]
+pub struct LabelGenerator {
+  pub next: u32,
+  pub name_to_label: HashMap<Name, u32>,
+  pub label_to_name: HashMap<u32, Name>,
+}
+
+impl LabelGenerator {
+  // If some tag and new generate a new label, otherwise return the generated label.
+  // If none use the implicit label counter.
+  pub fn generate(&mut self, tag: &Tag) -> Option<u32> {
+    let mut unique = || {
+      let lab = self.next;
+      self.next += 1;
+      lab
+    };
+    use std::collections::hash_map::Entry;
+    match tag {
+      Tag::Named(name) => match self.name_to_label.entry(name.clone()) {
+        Entry::Occupied(e) => Some(*e.get()),
+        Entry::Vacant(e) => {
+          let lab = unique();
+          self.label_to_name.insert(lab, name.clone());
+          Some(*e.insert(lab))
+        }
+      },
+      Tag::Numeric(lab) => Some(*lab),
+      Tag::Auto => Some(unique()),
+      Tag::Static => None,
+    }
+  }
+
+  pub fn to_tag(&self, label: Option<u32>) -> Tag {
+    match label {
+      Some(label) => match self.label_to_name.get(&label) {
+        Some(name) => Tag::Named(name.clone()),
+        None => Tag::Numeric(label),
+      },
+      None => Tag::Static,
+    }
+  }
+
+  pub fn finish(&mut self) {
+    self.next = u32::MAX;
+    self.name_to_label.clear();
+  }
 }
 
 impl<'t, 'l> Encoder<'t, 'l> {
@@ -284,5 +338,30 @@ impl<'t, 'l> Encoder<'t, 'l> {
 impl<'t, 'l> Drop for Encoder<'t, 'l> {
   fn drop(&mut self) {
     self.erase_vars()
+  }
+}
+
+impl Op {
+  pub fn to_hvmc_label(self) -> hvmc::ops::Op {
+    use hvmc::ops::Op as RtOp;
+    match self {
+      Op::ADD => RtOp::Add,
+      Op::SUB => RtOp::Sub,
+      Op::MUL => RtOp::Mul,
+      Op::DIV => RtOp::Div,
+      Op::MOD => RtOp::Mod,
+      Op::EQ => RtOp::Eq,
+      Op::NE => RtOp::Ne,
+      Op::LT => RtOp::Lt,
+      Op::GT => RtOp::Gt,
+      Op::LTE => RtOp::Lte,
+      Op::GTE => RtOp::Gte,
+      Op::AND => RtOp::And,
+      Op::OR => RtOp::Or,
+      Op::XOR => RtOp::Xor,
+      Op::LSH => RtOp::Lsh,
+      Op::RSH => RtOp::Rsh,
+      Op::NOT => RtOp::Not,
+    }
   }
 }

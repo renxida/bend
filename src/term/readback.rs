@@ -4,9 +4,9 @@ use hvmc::{
 };
 use indexmap::IndexMap;
 
-use crate::term::{DefId, Op, Pattern};
+use crate::term::{DefId, Op, Pattern, MatchNum};
 
-use super::{net_to_term::ReadbackError, term_to_net::Labels, Book, Name, Tag, Term};
+use super::{Book, Name, Tag, Term, encoder::Labels, ReadbackError};
 
 use loaned::LoanedMut;
 
@@ -72,6 +72,93 @@ struct Reader<'book, 'area, 'term> {
   host: &'book Host,
   name_idx: u64,
   errors: Vec<ReadbackError>,
+}
+
+impl Book {
+  pub fn is_generated_def(&self, def_id: &DefId) -> bool {
+    self.def_names.name(def_id).map_or(false, |Name(name)| name.contains('$'))
+  }
+}
+
+impl Term {
+  pub fn fix_names(&mut self, id_counter: &mut u64, book: &Book) {
+    fn fix_name(nam: &mut Option<Name>, id_counter: &mut u64, bod: &mut Term) {
+      if let Some(nam) = nam {
+        let name = Name::from_num(*id_counter);
+        *id_counter += 1;
+        bod.subst(nam, &Term::Var { nam: name.clone() });
+        *nam = name;
+      }
+    }
+
+    match self {
+      Term::Lam { nam, bod, .. } => {
+        fix_name(nam, id_counter, bod);
+        bod.fix_names(id_counter, book);
+      }
+      Term::Ref { def_id } => {
+        if book.is_generated_def(def_id) {
+          let def = book.defs.get(def_id).unwrap();
+          def.assert_no_pattern_matching_rules();
+          let mut term = def.rules[0].body.clone();
+          term.fix_names(id_counter, book);
+          *self = term
+        }
+      }
+      Term::Dup { fst, snd, val, nxt, .. } => {
+        val.fix_names(id_counter, book);
+        fix_name(fst, id_counter, nxt);
+        fix_name(snd, id_counter, nxt);
+        nxt.fix_names(id_counter, book);
+      }
+      Term::Chn { bod, .. } => bod.fix_names(id_counter, book),
+      Term::App { fun: fst, arg: snd, .. }
+      | Term::Sup { fst, snd, .. }
+      | Term::Tup { fst, snd }
+      | Term::Opx { op: _, fst, snd } => {
+        fst.fix_names(id_counter, book);
+        snd.fix_names(id_counter, book);
+      }
+      Term::Match { scrutinee, arms } => {
+        scrutinee.fix_names(id_counter, book);
+
+        for (rule, term) in arms {
+          if let Pattern::Num(MatchNum::Succ(Some(nam))) = rule {
+            fix_name(nam, id_counter, term);
+          }
+
+          term.fix_names(id_counter, book)
+        }
+      }
+      Term::Let { .. } => unreachable!(),
+      Term::Var { .. } | Term::Lnk { .. } | Term::Num { .. } | Term::Str { .. } | Term::Era => {}
+    }
+  }
+}
+
+impl Op {
+  pub fn from_hvmc_label(value: hvmc::ops::Op) -> Option<Op> {
+    use hvmc::ops::Op as RtOp;
+    match value {
+      RtOp::Add => Some(Op::ADD),
+      RtOp::Sub => Some(Op::SUB),
+      RtOp::Mul => Some(Op::MUL),
+      RtOp::Div => Some(Op::DIV),
+      RtOp::Mod => Some(Op::MOD),
+      RtOp::Eq => Some(Op::EQ),
+      RtOp::Ne => Some(Op::NE),
+      RtOp::Lt => Some(Op::LT),
+      RtOp::Gt => Some(Op::GT),
+      RtOp::Lte => Some(Op::LTE),
+      RtOp::Gte => Some(Op::GTE),
+      RtOp::And => Some(Op::AND),
+      RtOp::Or => Some(Op::OR),
+      RtOp::Xor => Some(Op::XOR),
+      RtOp::Lsh => Some(Op::LSH),
+      RtOp::Rsh => Some(Op::RSH),
+      RtOp::Not => Some(Op::NOT),
+    }
+  }
 }
 
 impl<'book, 'area, 'term> Reader<'book, 'area, 'term> {
@@ -266,9 +353,9 @@ impl<'book, 'area, 'term> Reader<'book, 'area, 'term> {
       RtTag::Num => {
         *into = Box::new(Term::Num { val: port.num() });
       }
-      RtTag::Op2 => todo!(),
-      RtTag::Op1 => todo!(),
-      RtTag::Mat => todo!(),
+      RtTag::Op2 | RtTag::Op1 | RtTag::Mat => {
+        *into = Box::new(Term::Era)
+      }
       RtTag::Ctr => {
         let port = port.traverse_node();
         if port.lab % 2 == 0 {
