@@ -1,8 +1,6 @@
 use super::{INet, NodeId, NodeKind, Port, ROOT};
-use crate::term::{DefId};
-use hvmc::{
-  ast::{Book, Net, Tree, num_to_str},
-};
+
+use hvmc::ast::{num_to_str, Book, Net, Tree};
 use std::collections::{HashMap, HashSet};
 
 /// Converts the inet-encoded definitions into an hvmc AST Book.
@@ -36,11 +34,7 @@ pub fn net_to_hvmc(inet: &INet) -> Result<Net, String> {
   Ok(Net { root, rdex })
 }
 
-fn net_tree_to_hvmc_tree(
-  inet: &INet,
-  tree_root: NodeId,
-  port_to_var_id: &mut HashMap<Port, VarId>,
-) -> Tree {
+fn net_tree_to_hvmc_tree(inet: &INet, tree_root: NodeId, port_to_var_id: &mut HashMap<Port, VarId>) -> Tree {
   match inet.node(tree_root).kind {
     NodeKind::Era => Tree::Era,
     NodeKind::Con { lab: None } => Tree::Ctr {
@@ -78,11 +72,7 @@ fn net_tree_to_hvmc_tree(
   }
 }
 
-fn var_or_subtree(
-  inet: &INet,
-  src_port: Port,
-  port_to_var_id: &mut HashMap<Port, VarId>,
-) -> Tree {
+fn var_or_subtree(inet: &INet, src_port: Port, port_to_var_id: &mut HashMap<Port, VarId>) -> Tree {
   let dst_port = inet.enter_port(src_port);
   if dst_port.slot() == 0 {
     // Subtree

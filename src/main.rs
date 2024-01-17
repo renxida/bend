@@ -1,7 +1,7 @@
 #![feature(return_position_impl_trait_in_trait)]
 
 use clap::{Parser, ValueEnum};
-use hvmc::ast::{show_book, show_net};
+use hvmc::ast::show_book;
 use hvml::{
   check_book, compile_book, desugar_book, load_file_to_book, run_book, total_rewrites, OptimizationLevel,
   RunInfo,
@@ -100,7 +100,7 @@ fn main() {
         let mem_size = args.mem / std::mem::size_of::<hvmc::run::Node>();
         let (res_term, def_names, info) =
           run_book(book, mem_size, !args.single_core, args.debug, args.linear, args.opt_level)?;
-        let RunInfo { stats, readback_errors, net: lnet } = info;
+        let RunInfo { stats, readback_errors, net: _lnet } = info;
         let total_rewrites = total_rewrites(&stats.rewrites) as f64;
         let rps = total_rewrites / stats.run_time / 1_000_000.0;
 

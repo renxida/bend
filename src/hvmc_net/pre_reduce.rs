@@ -2,11 +2,8 @@
 // This is a useful optimization on its own, but also required by an hvm-core optimization.
 
 use crate::term::DefNames;
-use hvmc::{
-  run::{Net, Tag, DefNet},
-  ast::{Host, DefRef}
-};
-use std::{collections::BTreeMap, borrow::BorrowMut};
+use hvmc::{ast::Host, run::Tag};
+use std::collections::BTreeMap;
 
 const MAX_ITERS: usize = 100_000;
 
@@ -14,7 +11,7 @@ const MAX_ITERS: usize = 100_000;
 /// If cross_refs, will deref and try to find the smallest net.
 /// Otherwise, just apply node~node interactions.
 pub fn pre_reduce_book(book: &mut BTreeMap<String, hvmc::ast::Net>, cross_refs: bool) -> Result<(), String> {
-  let mut host = Host::new(book);
+  let host = Host::new(book);
   for (nam, net) in book.iter_mut() {
     // Skip unnecessary work
     if net.rdex.is_empty() {
@@ -63,8 +60,7 @@ fn reduce_without_deref(net: &mut hvmc::run::Net<'_>, limit: usize) -> usize {
     for (a, b) in rdexes {
       match (a.tag() as u8, b.tag() as u8) {
         // But things would start to grow pretty quickly and we need some criteria for which net to choose and when to stop.
-        (2 /* Tag::Ref as u8 */, 4../* Tag::Op2 as u8 */) 
-          | (4.., 2) => collected_redexes.push((a, b)),
+        (2 /* Tag::Ref as u8 */, 4 .. /* Tag::Op2 as u8 */) | (4 .., 2) => collected_redexes.push((a, b)),
         _ => net.interact(a, b),
       }
       if iters >= limit {

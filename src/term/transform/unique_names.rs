@@ -21,7 +21,6 @@ impl Term {
   }
 }
 
-
 #[derive(Default)]
 struct UniqueNameScope(HashMap<Name, Vec<u64>>);
 

@@ -1,8 +1,6 @@
 use super::{INet, INode, INodes, NodeId, NodeKind::*, Port, SlotId, ROOT};
 use crate::term::DefId;
-use hvmc::{
-  ast::{Net, Tree},
-};
+use hvmc::ast::{Net, Tree};
 
 pub fn hvmc_to_net(net: &Net) -> INet {
   let inodes = hvmc_to_inodes(net);
@@ -10,7 +8,6 @@ pub fn hvmc_to_net(net: &Net) -> INet {
 }
 
 fn hvmc_to_inodes(net: &Net) -> INodes {
-
   let mut inodes = vec![];
   let mut n_vars = 0;
   let net_root = if let Tree::Var { nam } = &net.root { nam } else { "" };
@@ -31,12 +28,7 @@ fn hvmc_to_inodes(net: &Net) -> INodes {
   inodes
 }
 
-fn tree_to_inodes(
-  tree: &Tree,
-  tree_root: String,
-  net_root: &str,
-  n_vars: &mut NodeId,
-) -> INodes {
+fn tree_to_inodes(tree: &Tree, tree_root: String, net_root: &str, n_vars: &mut NodeId) -> INodes {
   fn new_var(n_vars: &mut NodeId) -> String {
     let new_var = format!("x{n_vars}");
     *n_vars += 1;
@@ -71,13 +63,13 @@ fn tree_to_inodes(
         let rgt = process_node_subtree(rgt, net_root, &mut subtrees, n_vars);
         inodes.push(INode {
           kind: if *lab == 0 {
-            Con { lab: None } 
+            Con { lab: None }
           } else if *lab == 1 {
             Tup
-          } else if lab & 1 == 0 { 
-            Con { lab: Some((lab >> 1) - 1) } 
-          } else { 
-            Dup { lab: (lab >> 1) - 1 } 
+          } else if lab & 1 == 0 {
+            Con { lab: Some((lab >> 1) - 1) }
+          } else {
+            Dup { lab: (lab >> 1) - 1 }
           },
           ports: [subtree_root, lft, rgt],
         })

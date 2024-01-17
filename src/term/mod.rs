@@ -5,13 +5,14 @@ use std::collections::{BTreeMap, HashMap};
 
 pub mod check;
 pub mod display;
+pub mod encoder;
 pub mod load_book;
 pub mod net_to_term;
 pub mod parser;
-pub mod term_to_net;
-pub mod transform;
 pub mod readback;
 pub mod resugar;
+pub mod term_to_net;
+pub mod transform;
 
 pub use net_to_term::{net_to_term, ReadbackError};
 pub use term_to_net::{book_to_nets, term_to_compat_net};
@@ -224,7 +225,9 @@ impl DefNames {
   }
 
   pub fn name(&self, def_id: &DefId) -> Option<&Name> {
-    if def_id.0 == Self::ENTRY_POINT && self.id_to_name.contains_key(&DefId(String::from(Self::HVM1_ENTRY_POINT))) {
+    if def_id.0 == Self::ENTRY_POINT
+      && self.id_to_name.contains_key(&DefId(String::from(Self::HVM1_ENTRY_POINT)))
+    {
       self.id_to_name.get(&DefId(String::from(Self::HVM1_ENTRY_POINT)))
     } else {
       self.id_to_name.get(def_id)
@@ -269,9 +272,9 @@ impl DefNames {
 
   pub fn make_unique(&mut self, name: &Name) -> String {
     if !self.contains_name(name) {
-      return name.clone().0
+      return name.clone().0;
     }
-    let mut id = 0;
+    let id = 0;
     loop {
       let new_name = Name(format!("{name}_{id}"));
       if !self.contains_name(&new_name) {
@@ -279,7 +282,6 @@ impl DefNames {
       }
     }
   }
-
 }
 
 impl Term {

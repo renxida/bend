@@ -3,9 +3,8 @@ use crate::{
   net::{INet, NodeId, NodeKind::*, Port, SlotId, ROOT},
   term::Pattern,
 };
-use std::collections::{HashMap, HashSet};
 use indexmap::IndexSet;
-
+use std::collections::{HashMap, HashSet};
 
 // TODO: Display scopeless lambdas as such
 /// Converts an Interaction-INet to a Lambda Calculus term
@@ -97,7 +96,11 @@ impl<'a> Reader<'a> {
         2 => {
           let fun = self.read_term(self.net.enter_port(Port(node, 0)));
           let arg = self.read_term(self.net.enter_port(Port(node, 1)));
-          Term::App { tag: self.labels.con.to_tag(lab.map(|x| x as u32)), fun: Box::new(fun), arg: Box::new(arg) }
+          Term::App {
+            tag: self.labels.con.to_tag(lab.map(|x| x as u32)),
+            fun: Box::new(fun),
+            arg: Box::new(arg),
+          }
         }
         _ => unreachable!(),
       },
@@ -400,19 +403,18 @@ impl Op {
       RtOp::Mul => Some(Op::MUL),
       RtOp::Div => Some(Op::DIV),
       RtOp::Mod => Some(Op::MOD),
-      RtOp::Eq  => Some(Op::EQ),
-      RtOp::Ne  => Some(Op::NE),
-      RtOp::Lt  => Some(Op::LT),
-      RtOp::Gt  => Some(Op::GT),
+      RtOp::Eq => Some(Op::EQ),
+      RtOp::Ne => Some(Op::NE),
+      RtOp::Lt => Some(Op::LT),
+      RtOp::Gt => Some(Op::GT),
       RtOp::Lte => Some(Op::LTE),
       RtOp::Gte => Some(Op::GTE),
       RtOp::And => Some(Op::AND),
-      RtOp::Or  => Some(Op::OR),
+      RtOp::Or => Some(Op::OR),
       RtOp::Xor => Some(Op::XOR),
       RtOp::Lsh => Some(Op::LSH),
       RtOp::Rsh => Some(Op::RSH),
       RtOp::Not => Some(Op::NOT),
-      _ => None,
     }
   }
 }

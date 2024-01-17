@@ -1,7 +1,5 @@
 use crate::term::DefNames;
-use hvmc::{
-  ast::{Book, Tree},
-};
+use hvmc::ast::{Book, Tree};
 use std::collections::HashSet;
 
 pub fn prune_defs(book: &mut Book) {
@@ -22,9 +20,7 @@ fn used_defs_in_tree(tree: &Tree, used_defs: &mut HashSet<String>) {
     Tree::Ref { nam } => {
       used_defs.insert(nam.clone());
     }
-    Tree::Ctr { lft, rgt, .. }
-    | Tree::Op2 { lft, rgt, .. }
-    | Tree::Mat { sel: lft, ret: rgt } => {
+    Tree::Ctr { lft, rgt, .. } | Tree::Op2 { lft, rgt, .. } | Tree::Mat { sel: lft, ret: rgt } => {
       used_defs_in_tree(lft, used_defs);
       used_defs_in_tree(rgt, used_defs);
     }

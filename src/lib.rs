@@ -1,20 +1,16 @@
 #![feature(box_patterns)]
 #![feature(return_position_impl_trait_in_trait)]
 
-use borrowed_box::BorrowedBox;
 use hvmc::{
-  ast::{show_book, Host, Net, show_net},
-  run::{Area, Rewrites, Net as RtNet},
+  ast::{show_book, Host, Net},
+  run::{Area, Net as RtNet, Rewrites},
 };
 use hvmc_net::{pre_reduce::pre_reduce_book, prune::prune_defs};
-use net::{hvmc_to_net::hvmc_to_net, net_to_hvmc::nets_to_hvmc};
+use loaned::LoanedMut;
+use net::hvmc_to_net::hvmc_to_net;
 use std::time::Instant;
-use term::{
-  book_to_nets, net_to_term,
-  Book, DefId, DefNames, ReadbackError, Term,
-};
+use term::{encoder::book_to_tree, net_to_term, Book, DefId, DefNames, ReadbackError, Term};
 
-pub mod borrowed_box;
 pub mod hvmc_net;
 pub mod net;
 pub mod term;
@@ -31,13 +27,12 @@ pub fn check_book(mut book: Book) -> Result<(), String> {
 
 pub fn compile_book(book: &mut Book, opt_level: OptimizationLevel) -> Result<CompileResult, String> {
   let main = desugar_book(book, opt_level)?;
-  let (nets, labels) = book_to_nets(book, main);
-  let mut core_book = nets_to_hvmc(nets)?;
+  let mut core_book = book_to_tree(book, main);
   pre_reduce_book(&mut core_book, opt_level >= OptimizationLevel::Heavy)?;
   if opt_level >= OptimizationLevel::Heavy {
     prune_defs(&mut core_book);
   }
-  Ok(CompileResult { core_book, labels, warnings: vec![] })
+  Ok(CompileResult { core_book, labels: Labels::default(), warnings: vec![] })
 }
 
 pub fn desugar_book(book: &mut Book, opt_level: OptimizationLevel) -> Result<DefId, String> {
@@ -102,14 +97,13 @@ pub fn run_book(
       res_term.display(&book.def_names)
     );
   }
-  let debug_hook =
-    if debug { Some(|net: &_| debug_hook(net, &book, &labels, linear)) } else { None };
+  let debug_hook = if debug { Some(|net: &_| debug_hook(net, &book, &labels, linear)) } else { None };
 
   let host = Host::new(&core_book);
   let ((area, mut res_inet), stats) = run_compiled(&host, mem_size, parallel, debug_hook);
   let res_term = crate::term::readback::readback_and_resugar(&mut res_inet, &labels, &host, &book);
   let info = RunInfo { stats, readback_errors: vec![], net: Net::default() };
-  area.place_option(&mut None);
+  area.place(&mut None);
   Ok((*res_term, book.def_names, info))
 }
 
@@ -118,19 +112,17 @@ pub fn run_compiled<'t>(
   mem_size: usize,
   parallel: bool,
   hook: Option<impl FnMut(&Net)>,
-) -> ((BorrowedBox<'t, Box<Area>>, RtNet<'t>), RunStats) {
-
-  let (heap_ref, heap_own) = BorrowedBox::new(RtNet::init_heap(mem_size));
+) -> ((LoanedMut<'t, Box<Box<Area>>>, RtNet<'t>), RunStats) {
+  let (heap_ref, heap_own) = LoanedMut::new(Box::new(RtNet::init_heap(mem_size)));
   // Weaken reference so we can share it.
   let heap_ref: &'t Area = heap_ref;
   let mut root = RtNet::new(&heap_ref);
   // Expect won't be reached because there's
   // a pass that checks this.
   root.boot(host.defs.get(DefNames::ENTRY_POINT).expect("No main function."));
-  
 
   let start_time = Instant::now();
-  
+
   if let Some(mut hook) = hook {
     root.expand();
     while !root.rdex.is_empty() {
@@ -144,11 +136,10 @@ pub fn run_compiled<'t>(
     root.normal()
   }
 
-
   let elapsed = start_time.elapsed().as_secs_f64();
 
   let rwts = root.rwts;
-  let net = host.readback(&root);
+  let _net = host.readback(&root);
 
   // TODO I don't quite understand this code
   // How would it be implemented in the new version?

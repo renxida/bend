@@ -3,9 +3,7 @@ use crate::{
   net::{INet, NodeKind::*, Port, ROOT},
   term::MatchNum,
 };
-use hvmc::{
-  run::Loc,
-};
+
 use std::collections::{hash_map::Entry, HashMap};
 
 pub fn book_to_nets(book: &Book, main: DefId) -> (HashMap<String, INet>, Labels) {
@@ -16,11 +14,8 @@ pub fn book_to_nets(book: &Book, main: DefId) -> (HashMap<String, INet>, Labels)
     for rule in def.rules.iter() {
       let net = term_to_compat_net(&rule.body, &mut labels);
 
-      let name = if def.def_id == main {
-        DefNames::ENTRY_POINT.to_string()
-      } else {
-        def_id_to_hvmc_name(&def.def_id)
-      };
+      let name =
+        if def.def_id == main { DefNames::ENTRY_POINT.to_string() } else { def_id_to_hvmc_name(&def.def_id) };
 
       nets.insert(name, net);
     }
@@ -33,11 +28,7 @@ pub fn book_to_nets(book: &Book, main: DefId) -> (HashMap<String, INet>, Labels)
 }
 
 fn def_id_to_hvmc_name(def_id: &DefId) -> String {
-  if def_id.0 == DefNames::HVM1_ENTRY_POINT {
-    String::from(DefNames::ENTRY_POINT)
-  } else {
-    def_id.0.clone()
-  }
+  if def_id.0 == DefNames::HVM1_ENTRY_POINT { String::from(DefNames::ENTRY_POINT) } else { def_id.0.clone() }
 }
 
 /// Converts an IC term into an IC net.
@@ -316,7 +307,7 @@ pub struct LabelGenerator {
 impl LabelGenerator {
   // If some tag and new generate a new label, otherwise return the generated label.
   // If none use the implicit label counter.
-  fn generate(&mut self, tag: &Tag) -> Option<u32> {
+  pub fn generate(&mut self, tag: &Tag) -> Option<u32> {
     let mut unique = || {
       let lab = self.next;
       self.next += 1;
@@ -347,7 +338,7 @@ impl LabelGenerator {
     }
   }
 
-  fn finish(&mut self) {
+  pub fn finish(&mut self) {
     self.next = u32::MAX;
     self.name_to_label.clear();
   }

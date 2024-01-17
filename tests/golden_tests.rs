@@ -6,7 +6,7 @@ use hvml::{
   term::{
     net_to_term::net_to_term,
     parser::{parse_definition_book, parse_term},
-    term_to_compat_net, Book, DefId, Term,
+    term_to_compat_net, Book, Term,
   },
   OptimizationLevel,
 };
