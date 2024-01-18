@@ -30,6 +30,7 @@ impl<'term> TermHole<'term> {
     match self {
       TermHole::Variable(a, b) => {
         *b = None;
+        // TODO don't drop
         core::mem::forget(a);
         true
       }
@@ -292,21 +293,20 @@ impl<'book, 'area, 'term> Reader<'book, 'area, 'term> {
           let fst_var = Term::Var { nam: fst.clone() };
           let snd = self.generate_name();
           let snd_var = Term::Var { nam: snd.clone() };
-          let (_fst_ref, fst_box) = LoanedMut::loan(Box::new(fst_var));
+          //let (_fst_ref, fst_box) = LoanedMut::loan(Box::new(fst_var));
           let (_snd_ref, snd_box) = LoanedMut::loan(Box::new(snd_var));
           let out = Term::Dup {
             tag,
             fst: Some(fst),
             snd: Some(snd),
             val: Box::new(self.unfilled_term()),
-            nxt: Box::new(self.unfilled_term()),
+            nxt: Box::new(fst_var),
           };
           let (out_ref, out_box) = LoanedMut::loan(Box::new(out));
           let Term::Dup { tag: _, fst, snd, val, nxt: _ } = out_ref else { unreachable!() };
-          self.read_pos(port.p1, TermHole::Variable(fst_box.into(), fst));
+          self.read_pos(port.p1, TermHole::Variable(out_box.into(), fst));
           self.read_pos(port.p2, TermHole::Variable(snd_box.into(), snd));
           term.place(val);
-          core::mem::forget(out_box)
         }
       }
     }
@@ -584,12 +584,24 @@ pub fn readback(net: &mut Net, labels: &Labels, host: &Host, book: &Book) -> Box
 pub fn readback_and_resugar(net: &mut Net, labels: &Labels, host: &Host, book: &Book) -> Box<Term> {
   let mut term = Box::new(Term::Era);
   let root = net.root.clone();
+  let vars = {
+    let mut reader =
+      Reader { net, vars: IndexMap::new(), labels, name_idx: 0, pats: vec![], host, book, errors: vec![] };
+    reader.read_neg(root.unwrap(), &mut term);
+    core::mem::take(&mut reader.vars)
+  };
+
+  // Properly drop vars
+  let vars: Vec<_> = vars.into_values().filter_map(|x| match x {
+      SignedTerm::Pos(x) => Some(x),
+      SignedTerm::Neg(_) => None,
+  }).collect();
+  let vars: LoanedMut<Vec<Box<Term>>> = vars.into();
+  loaned::drop!(vars);
+
   let mut reader =
     Reader { net, vars: IndexMap::new(), labels, name_idx: 0, pats: vec![], host, book, errors: vec![] };
-  reader.read_neg(root.unwrap(), &mut term);
-  drop(reader);
-  let mut reader =
-    Reader { net, vars: IndexMap::new(), labels, name_idx: 0, pats: vec![], host, book, errors: vec![] };
+  assert!(reader.vars.is_empty());
   reader.resugar_adts(&mut term);
   if !reader.errors.is_empty() {
     todo!("{:?}", reader.errors);

@@ -1,0 +1,3 @@
+// Manual duplication
+main = 
+	λf λx let {f0 f1} = f; (f0 (f1 x))
