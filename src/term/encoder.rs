@@ -7,7 +7,7 @@ use loaned::LoanedMut;
 
 use crate::term::{MatchNum, Pattern};
 
-use super::{Book, DefId, DefNames, Name, Term, Tag, Op};
+use super::{Book, DefId, DefNames, Name, Op, Tag, Term};
 
 pub fn book_to_tree(book: &Book, main: DefId) -> hvmc::ast::Book {
   let mut nets = BTreeMap::new();
@@ -61,13 +61,10 @@ pub fn term_to_compat_net(term: &Term, labels: &mut Labels) -> hvmc::ast::Net {
     }
   };
 
-  let mut loaned_redexes = loaned::take!(loaned_redexes);
+  let redex = loaned::take!(loaned_redexes);
+  let root = loaned::take!(root_own);
 
-
-  let mut root_hole = Box::new(Box::new(Tree::Era));
-  root_own.place(&mut root_hole);
-
-  Net { root: **root_hole, rdex: loaned_redexes.into_iter().map(|(a, b)| (*a, *b)).collect() }
+  Net { root: **root, rdex: redex.into_iter().map(|(a, b)| (*a, *b)).collect() }
 }
 
 #[derive(Debug)]
