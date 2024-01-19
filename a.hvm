@@ -1,4 +1,1 @@
-main = λn match n {
-	0: 0
-	+: λ$x (n-1 $x)
-}
+main = λx λy x

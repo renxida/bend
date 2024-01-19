@@ -202,7 +202,7 @@ impl<'book, 'area, 'term> Reader<'book, 'area, 'term> {
 
         let op = Op::from_hvmc_label(port.lab.try_into().unwrap()).unwrap();
         let ((fst, snd), out) =
-          LoanedMut::loan_multi(Term::Opx { op, fst: hole(), snd: hole() }, |term, l| {
+          LoanedMut::loan_with(Term::Opx { op, fst: hole(), snd: hole() }, |term, l| {
             let Term::Opx { fst, snd, .. } = term else { unreachable!() };
             (l.loan_mut(fst), l.loan_mut(snd))
           });
@@ -236,7 +236,7 @@ impl<'book, 'area, 'term> Reader<'book, 'area, 'term> {
             }),
           ],
         };
-        let ((scrutinee, zero, succ), mat) = LoanedMut::loan_multi(mat, |mat, l| {
+        let ((scrutinee, zero, succ), mat) = LoanedMut::loan_with(mat, |mat, l| {
           let Term::Match { scrutinee, arms } = mat else { unreachable!() };
           let [(_, Term::Let { nxt: zero, .. }), (_, Term::Let { nxt: succ, .. })] = &mut arms[..] else {
             unreachable!()
@@ -269,7 +269,7 @@ impl<'book, 'area, 'term> Reader<'book, 'area, 'term> {
           let tag =
             self.labels.con.to_tag(if port.lab == 0 { None } else { Some((port.lab as u32 >> 1) - 1) });
           let ((fun, arg), out) =
-            LoanedMut::loan_multi(Term::App { tag, fun: hole(), arg: hole() }, |term, l| {
+            LoanedMut::loan_with(Term::App { tag, fun: hole(), arg: hole() }, |term, l| {
               let Term::App { fun, arg, .. } = term else { unreachable!() };
               (l.loan_mut(fun), l.loan_mut(arg))
             });
@@ -284,19 +284,9 @@ impl<'book, 'area, 'term> Reader<'book, 'area, 'term> {
           } else {
             Some((port.lab as u32 >> 1) - 1)
           });
-
-          let fst = self.generate_name();
-          let fst_var = Term::Var { nam: fst.clone() };
-          let snd = self.generate_name();
-          let snd_var = Term::Var { nam: snd.clone() };
-          //let (_fst_ref, fst_box) = LoanedMut::loan(Box::new(fst_var));
-          let (_snd_ref, snd_box) = LoanedMut::loan(Box::new(snd_var));
-          let out = Term::Dup { tag, fst: Some(fst), snd: Some(snd), val: hole(), nxt: Box::new(fst_var) };
-          let (val, out) = LoanedMut::loan(Box::new(out));
-          let Term::Dup { tag: _, fst, snd, val, nxt: _ } = out_ref else { unreachable!() };
-          self.read_pos(port.p1, TermHole::Variable(out_box.into(), fst));
-          self.read_pos(port.p2, TermHole::Variable(snd_box.into(), snd));
-          term.place(val);
+          // self.read_pos(port.p1, TermHole::Term(term.term()));
+          // self.read_pos(port.p2, TermHole::Term(term.term()));
+          todo!("Duplication :(. Not supported until refactor of patterns.")
         }
       }
     }
@@ -319,7 +309,7 @@ impl<'book, 'area, 'term> Reader<'book, 'area, 'term> {
       }
       RtTag::Ref => {
         if port == Port::ERA {
-          *into = Box::new(Term::Era)
+          *into = Term::Era
         } else {
           if let Some(def_name) = self.host.back.get(&port.loc()) {
             let def_id = DefId(def_name.clone());
@@ -328,53 +318,53 @@ impl<'book, 'area, 'term> Reader<'book, 'area, 'term> {
               def.assert_no_pattern_matching_rules();
               let mut term = def.rules[0].body.clone();
               term.fix_names(&mut self.name_idx, self.book);
-              *into = Box::new(term);
+              *into = term;
             } else {
-              *into = Box::new(Term::Ref { def_id })
+              *into = Term::Ref { def_id }
             }
           } else {
-            *into = Box::new(Term::Ref { def_id: DefId("unknown_ref".to_string()) })
+            *into = Term::Ref { def_id: DefId("unknown_ref".to_string()) }
           }
         }
       }
       RtTag::Num => {
-        *into = Box::new(Term::Num { val: port.num() });
+        *into = Term::Num { val: port.num() };
       }
-      RtTag::Op2 | RtTag::Op1 | RtTag::Mat => *into = Box::new(Term::Era),
+      RtTag::Op2 | RtTag::Op1 | RtTag::Mat => *into = Term::Era,
       RtTag::Ctr => {
         let port = port.traverse_node();
         if port.lab % 2 == 0 {
           // Even labels are CON
           let nam = self.generate_name();
           let var = Term::Var { nam: nam.clone() };
-          let (_var_ref, var_box) = LoanedMut::loan(Box::new(var));
+          let var_box = LoanedMut::new(var);
 
           let tag =
             self.labels.con.to_tag(if port.lab == 0 { None } else { Some((port.lab as u32 >> 1) - 1) });
 
-          *into = Box::new(Term::Lam { tag, nam: Some(nam), bod: Box::new(self.unfilled_term()) });
+          *into = Term::Lam { tag, nam: Some(nam), bod: hole() };
           // Fill it
-          let Term::Lam { ref mut bod, ref mut nam, .. } = into.as_mut() else { unreachable!() };
+          let Term::Lam { ref mut bod, ref mut nam, .. } = into else { unreachable!() };
           self.read_pos(port.p1, (var_box, nam).into());
           self.read_neg(port.p2, bod);
         } else {
           if port.lab != 1 {
             let _tag = (port.lab as u32 >> 1) - 1;
             let tag = self.labels.dup.to_tag(Some((port.lab as u32 >> 1) - 1));
-            *into = Box::new(Term::Sup {
+            *into = Term::Sup {
               tag,
-              fst: Box::new(self.unfilled_term()),
-              snd: Box::new(self.unfilled_term()),
-            });
-            let Term::Sup { fst, snd, .. } = into.as_mut() else { unreachable!() };
+              fst: hole(),
+              snd: hole(),
+            };
+            let Term::Sup { fst, snd, .. } = into else { unreachable!() };
             self.read_neg(port.p1, fst);
             self.read_neg(port.p2, snd);
           } else {
-            *into = Box::new(Term::Tup {
-              fst: Box::new(self.unfilled_term()),
-              snd: Box::new(self.unfilled_term()),
-            });
-            let Term::Tup { ref mut fst, ref mut snd, .. } = into.as_mut() else { unreachable!() };
+            *into = Term::Tup {
+              fst: hole(),
+              snd: hole(),
+            };
+            let Term::Tup { ref mut fst, ref mut snd, .. } = into else { unreachable!() };
             self.read_neg(port.p1, fst);
             self.read_neg(port.p2, snd);
           }
@@ -584,7 +574,7 @@ pub fn readback_and_resugar(net: &mut Net, labels: &Labels, host: &Host, book: &
       SignedTerm::Neg(_) => None,
     })
     .collect();
-  let vars: LoanedMut<Vec<Box<Term>>> = vars.into();
+  let vars: LoanedMut<Vec<Term>> = vars.into();
   loaned::drop!(vars);
 
   let mut reader =
