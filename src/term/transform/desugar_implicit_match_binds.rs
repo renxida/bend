@@ -56,7 +56,8 @@ impl Term {
               // Implicit num arg
               *p = Some(Some(Name(format!("{scrutinee}-1"))));
             }
-            Pattern::Tup(_, _) => (),
+            Pattern::Tup(..) => (),
+            Pattern::Dup(..) => (),
           }
           body.desugar_implicit_match_binds(ctrs, adts);
         }

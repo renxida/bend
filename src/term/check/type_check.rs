@@ -54,6 +54,7 @@ pub fn infer_arg_type<'a>(
         }
       }
       Pattern::Tup(..) => Type::Tup,
+      Pattern::Dup(..) => todo!(),
       Pattern::Num(..) => Type::Num,
     };
     unify(pat_type, &mut arg_type)?

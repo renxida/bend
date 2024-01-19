@@ -37,6 +37,10 @@ impl Pattern {
         fst.resolve_ctrs(is_ctr);
         snd.resolve_ctrs(is_ctr);
       }
+      Pattern::Dup(_, fst, snd) => {
+        fst.resolve_ctrs(is_ctr);
+        snd.resolve_ctrs(is_ctr);
+      }
     }
   }
 }

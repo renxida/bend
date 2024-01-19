@@ -284,9 +284,28 @@ impl<'book, 'area, 'term> Reader<'book, 'area, 'term> {
           } else {
             Some((port.lab as u32 >> 1) - 1)
           });
-          // self.read_pos(port.p1, TermHole::Term(term.term()));
-          // self.read_pos(port.p2, TermHole::Term(term.term()));
-          todo!("Duplication :(. Not supported until refactor of patterns.")
+          let fst_name = Some(self.generate_name());
+          let snd_name = Some(self.generate_name());
+          let snd_var = Term::Var { nam: snd_name.as_ref().unwrap().clone() };
+          let snd_box = LoanedMut::new(snd_var);
+          let ((val, fst, snd, nxt), dup) = LoanedMut::<'term, Term>::loan_with(
+            Term::Let { pat: Pattern::Dup(
+              tag, 
+              Box::new(Pattern::Var(fst_name.clone())),
+              Box::new(Pattern::Var(snd_name)),
+            ), val: hole(), nxt: hole() }, 
+            |term: &mut Term, l| {
+              let Term::Let { pat: Pattern::Dup(tag, fst, snd), val, nxt } = term else { unreachable!() };
+              (l.loan_mut(val), l.loan_mut(fst), l.loan_mut(snd), l.loan_mut(nxt))
+            }
+          );
+          let Pattern::Var(fst) = fst else { unreachable!() };
+          let Pattern::Var(snd) = snd else { unreachable!() };
+          term.place(val);
+          *nxt = Term::Var { nam: fst_name.unwrap() };
+          self.read_pos(port.p1, TermHole::Variable(dup, fst));
+          self.read_pos(port.p2, TermHole::Variable(snd_box, snd));
+
         }
       }
     }

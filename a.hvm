@@ -1,1 +1,1 @@
-main = λx λy x
+main = λx (x x)

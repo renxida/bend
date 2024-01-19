@@ -150,6 +150,7 @@ pub enum Pattern {
   Ctr(Name, Vec<Pattern>),
   Num(MatchNum),
   Tup(Box<Pattern>, Box<Pattern>),
+  Dup(Tag, Box<Pattern>, Box<Pattern>),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -476,6 +477,7 @@ impl Pattern {
       }
       Pattern::Num(..) => false,
       Pattern::Tup(fst, snd) => fst.occurs(name) || snd.occurs(name),
+      Pattern::Dup(_, fst, snd) => fst.occurs(name) || snd.occurs(name),
     }
   }
 
@@ -492,6 +494,10 @@ impl Pattern {
           set.push(nam);
         }
         Pattern::Num(_) => {}
+        Pattern::Dup(_, fst, snd) => {
+          go(fst, set);
+          go(snd, set);
+        },
       }
     }
     let mut set = Vec::new();
@@ -512,6 +518,10 @@ impl Pattern {
           set.push(nam);
         }
         Pattern::Num(_) => {}
+        Pattern::Dup(_, fst, snd) => {
+          go(fst, set);
+          go(snd, set);
+        },
       }
     }
     let mut set = Vec::new();
@@ -539,6 +549,9 @@ impl Pattern {
       Pattern::Tup(fst, snd) => {
         matches!(fst.as_ref(), Pattern::Var(_)) && matches!(snd.as_ref(), Pattern::Var(_))
       }
+      Pattern::Dup(_, fst, snd) => {
+        matches!(fst.as_ref(), Pattern::Var(_)) && matches!(snd.as_ref(), Pattern::Var(_))
+      },
     }
   }
 }
@@ -567,6 +580,7 @@ impl From<&Pattern> for Term {
       Pattern::Ctr(nam, pats) => Term::call(Term::Var { nam: nam.clone() }, pats.iter().map(Term::from)),
       Pattern::Num(..) => todo!(),
       Pattern::Tup(..) => todo!(),
+      Pattern::Dup(tag, fst, snd) => Term::Sup { tag: tag.clone(), fst: Box::new(fst.as_ref().into()), snd: Box::new(snd.as_ref().into())},
     }
   }
 }

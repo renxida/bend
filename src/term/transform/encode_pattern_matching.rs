@@ -85,6 +85,15 @@ fn make_rule_body(mut body: Term, pats: &[Pattern]) -> Term {
             .into(),
         };
       }
+      pat @ Pattern::Dup(..) => {
+        let tup = Name::new("%0");
+        body = Term::Lam {
+          tag: Tag::Static,
+          nam: Some(tup.clone()),
+          bod: Term::Let { pat: pat.clone(), val: Box::new(Term::Var { nam: tup }), nxt: Box::new(body) }
+            .into(),
+        };
+      }
     }
   }
   body
@@ -184,6 +193,7 @@ fn make_leaf_pattern_matching_case(
       }
       // As the destructuring of the tuple happens later, we just pass the tuple itself.
       (Pattern::Var(_), Pattern::Tup(..)) => Term::optional_arg_call(term, next(lambdas_usage, arg_use)),
+      (Pattern::Var(_), Pattern::Dup(..)) => Term::optional_arg_call(term, next(lambdas_usage, arg_use)),
       (Pattern::Num(MatchNum::Zero), Pattern::Num(MatchNum::Zero)) => term,
       (Pattern::Num(MatchNum::Succ { .. }), Pattern::Num(MatchNum::Succ { .. })) => {
         Term::optional_arg_call(term, next(lambdas_usage, arg_use))
@@ -193,6 +203,7 @@ fn make_leaf_pattern_matching_case(
       (Pattern::Var(_), _) => unreachable!(),
       (Pattern::Num(..), _) => unreachable!(),
       (Pattern::Tup(..), _) => unreachable!(),
+      (Pattern::Dup(..), _) => unreachable!(),
     }
   });
 
@@ -237,6 +248,7 @@ fn add_tagged_new_args(
       }
       Pattern::Num(_) => term = Term::named_lam(new_args.next().unwrap(), term),
       Pattern::Tup(..) => todo!(),
+      Pattern::Dup(..) => todo!(),
     }
 
     term
@@ -320,6 +332,7 @@ fn make_adt_pattern_matching_case(
         Pattern::Ctr(nam, _) => nam == ctr,
         Pattern::Num(..) => todo!(),
         Pattern::Tup(..) => todo!(),
+        Pattern::Dup(..) => todo!(),
       })
       .collect()
   }
@@ -466,6 +479,7 @@ fn get_pat_arg_count(match_path: &[Pattern]) -> (usize, usize) {
     Pattern::Num(MatchNum::Succ { .. }) => 1,
     // For tuples this isn't actually called, because we only destructure them at the end
     Pattern::Tup(..) => 2,
+    Pattern::Dup(..) => 2,
   };
   if let Some((new_pat, old_pats)) = match_path.split_last() {
     let new_args = pat_arg_count(new_pat);

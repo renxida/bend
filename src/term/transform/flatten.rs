@@ -41,7 +41,7 @@ fn matches_together(a: &[Pattern], b: &[Pattern]) -> (bool, bool) {
           same_shape = false;
         }
       }
-      (Pattern::Ctr(..) | Pattern::Num(_) | Pattern::Tup(..), Pattern::Var(..)) => {
+      (Pattern::Ctr(..) | Pattern::Num(_) | Pattern::Tup(..) | Pattern::Dup(..), Pattern::Var(..)) => {
         same_shape = false;
       }
       (Pattern::Num(a_num), Pattern::Num(b_num)) => {
@@ -51,8 +51,8 @@ fn matches_together(a: &[Pattern], b: &[Pattern]) -> (bool, bool) {
         }
       }
       (
-        Pattern::Ctr(..) | Pattern::Num(..) | Pattern::Tup(..),
-        Pattern::Ctr(..) | Pattern::Num(..) | Pattern::Tup(..),
+        Pattern::Ctr(..) | Pattern::Num(..) | Pattern::Dup(..) | Pattern::Tup(..),
+        Pattern::Ctr(..) | Pattern::Num(..) | Pattern::Dup(..) | Pattern::Tup(..),
       ) => {
         if std::mem::discriminant(a) != std::mem::discriminant(b) {
           matches_together = false;
@@ -124,7 +124,7 @@ fn make_old_rule(pats: &[Pattern], new_split_def_id: DefId) -> Rule {
         let mut new_arg_args = Vec::new();
         for field in arg_args {
           let var_name = match field {
-            Pattern::Ctr(..) | Pattern::Tup(..) | Pattern::Num(..) | Pattern::Var(None) => {
+            Pattern::Ctr(..) | Pattern::Tup(..) | Pattern::Dup(..) | Pattern::Num(..) | Pattern::Var(None) => {
               make_var_name(&mut var_count)
             }
             Pattern::Var(Some(nam)) => nam.clone(),
@@ -142,6 +142,15 @@ fn make_old_rule(pats: &[Pattern], new_split_def_id: DefId) -> Rule {
         let fst = Pattern::Var(Some(fst));
         let snd = Pattern::Var(Some(snd));
         new_pats.push(Pattern::Tup(Box::new(fst), Box::new(snd)));
+      }
+      Pattern::Dup(tag, _, _) => {
+        let fst = make_var_name(&mut var_count);
+        let snd = make_var_name(&mut var_count);
+        new_body_args.push(Term::Var { nam: fst.clone() });
+        new_body_args.push(Term::Var { nam: snd.clone() });
+        let fst = Pattern::Var(Some(fst));
+        let snd = Pattern::Var(Some(snd));
+        new_pats.push(Pattern::Dup(tag.clone(), Box::new(fst), Box::new(snd)));
       }
       Pattern::Var(None) => todo!(),
       Pattern::Var(Some(nam)) => {
@@ -218,6 +227,7 @@ fn make_split_rule(old_rule: &Rule, other_rule: &Rule, def_names: &DefNames) -> 
         new_pats.push(Pattern::Var(None));
         new_pats.push(Pattern::Var(None));
       }
+      _ => todo!(),
     }
   }
   Rule { pats: new_pats, body: new_body }

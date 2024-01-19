@@ -42,6 +42,7 @@ impl Pattern {
         Pattern::Var(_) => (),
         Pattern::Num(_) => (),
         Pattern::Tup(_, _) => (),
+        Pattern::Dup(_, _, _) => (),
       }
     }
     unbounds

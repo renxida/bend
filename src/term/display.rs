@@ -105,6 +105,7 @@ impl fmt::Display for Pattern {
       }
       Pattern::Num(num) => write!(f, "{num}"),
       Pattern::Tup(fst, snd) => write!(f, "({}, {})", fst, snd,),
+      Pattern::Dup(tag, fst, snd) => write!(f, "{} {{{} {}}}", tag.display(), fst, snd),
     }
   }
 }
