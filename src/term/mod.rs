@@ -209,9 +209,9 @@ pub struct Adt {
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum AdtEncoding {
+  #[default]
   Scott,
 
-  #[default]
   TaggedScott,
 }
 

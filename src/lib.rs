@@ -25,7 +25,7 @@ pub const HVM1_ENTRY_POINT: &str = "Main";
 
 pub fn check_book(book: &mut Book) -> Result<(), Diagnostics> {
   // TODO: Do the checks without having to do full compilation
-  let res = compile_book(book, CompileOpts::light(), DiagnosticsConfig::new(Severity::Warning, false), None)?;
+  let res = compile_book(book, CompileOpts::default(), DiagnosticsConfig::new(Severity::Warning, false), None)?;
   print!("{}", res.diagnostics);
   Ok(())
 }

@@ -176,7 +176,7 @@ pub enum OptArgs {
 impl OptArgs {
   fn opts_from_cli(args: &Vec<Self>) -> CompileOpts {
     use OptArgs::*;
-    let mut opts = CompileOpts::light();
+    let mut opts = CompileOpts::default();
     for arg in args {
       match arg {
         All => opts = opts.set_all(),
@@ -257,10 +257,10 @@ fn execute_cli_mode(mut cli: Cli) -> Result<(), Diagnostics> {
         warn_opts,
       );
 
-      let mut opts = OptArgs::opts_from_cli(&comp_opts);
-      if lazy_mode {
+      let opts = OptArgs::opts_from_cli(&comp_opts);
+      /* if lazy_mode {
         opts.lazy_mode();
-      }
+      } */
 
       let mut book = load_book(&path)?;
       let compile_res = compile_book(&mut book, opts, diagnostics_cfg, None)?;
@@ -275,10 +275,10 @@ fn execute_cli_mode(mut cli: Cli) -> Result<(), Diagnostics> {
         warn_opts,
       );
 
-      let mut opts = OptArgs::opts_from_cli(&comp_opts);
-      if lazy_mode {
+      let opts = OptArgs::opts_from_cli(&comp_opts);
+      /* if lazy_mode {
         opts.lazy_mode();
-      }
+      } */
 
       let mut book = load_book(&path)?;
       let diagnostics = desugar_book(&mut book, opts, diagnostics_cfg, None)?;
@@ -308,12 +308,12 @@ fn execute_cli_mode(mut cli: Cli) -> Result<(), Diagnostics> {
       let diagnostics_cfg =
         set_warning_cfg_from_cli(DiagnosticsConfig::new(Severity::Allow, arg_verbose), lazy_mode, warn_opts);
 
-      let mut compile_opts = OptArgs::opts_from_cli(&comp_opts);
-      compile_opts.check(lazy_mode);
+      let compile_opts = OptArgs::opts_from_cli(&comp_opts);
+      //compile_opts.check(lazy_mode);
 
       if lazy_mode {
         single_core = true;
-        compile_opts.lazy_mode();
+        //compile_opts.lazy_mode();
       }
 
       let run_opts = RunOpts { single_core, debug, linear, lazy_mode, max_memory, max_rewrites };
