@@ -2,7 +2,7 @@ use super::{INet, NodeId, NodeKind, Port, ROOT};
 
 use crate::{
   diagnostics::{Diagnostics, ToStringVerbose},
-  term::num_to_name,
+  term::{num_to_name, Name},
 };
 use hvmc::ast::{Book, Net, Tree};
 use std::collections::{HashMap, HashSet};
@@ -10,12 +10,16 @@ use std::collections::{HashMap, HashSet};
 pub struct ViciousCycleErr;
 
 /// Converts the inet-encoded definitions into an hvmc AST Book.
-pub fn nets_to_hvmc(nets: HashMap<String, INet>, info: &mut Diagnostics) -> Result<Book, Diagnostics> {
+pub fn nets_to_hvmc(
+  nets: HashMap<String, INet>,
+  hvml_to_hvmc_name: &HashMap<Name, hvmc::run::Val>,
+  info: &mut Diagnostics,
+) -> Result<Book, Diagnostics> {
   info.start_pass();
 
   let mut book = Book::default();
   for (name, inet) in nets {
-    let res = net_to_hvmc(&inet);
+    let res = net_to_hvmc(&inet, hvml_to_hvmc_name);
     if let Some(net) = info.take_inet_err(res, name.clone()) {
       book.insert(name, net);
     }
@@ -25,12 +29,15 @@ pub fn nets_to_hvmc(nets: HashMap<String, INet>, info: &mut Diagnostics) -> Resu
 }
 
 /// Convert an inet-encoded definition into an hvmc AST inet.
-pub fn net_to_hvmc(inet: &INet) -> Result<Net, ViciousCycleErr> {
+pub fn net_to_hvmc(
+  inet: &INet,
+  hvml_to_hvmc_name: &HashMap<Name, hvmc::run::Val>,
+) -> Result<Net, ViciousCycleErr> {
   let (net_root, net_redexes) = get_tree_roots(inet)?;
   let mut port_to_var_id: HashMap<Port, VarId> = HashMap::new();
   let root = if let Some(net_root) = net_root {
     // If there is a root tree connected to the root node
-    net_tree_to_hvmc_tree(inet, net_root, &mut port_to_var_id)
+    net_tree_to_hvmc_tree(inet, net_root, &mut port_to_var_id, hvml_to_hvmc_name)
   } else {
     // If the root node points to some aux port (application)
     port_to_var_id.insert(inet.enter_port(ROOT), 0);
@@ -38,57 +45,65 @@ pub fn net_to_hvmc(inet: &INet) -> Result<Net, ViciousCycleErr> {
   };
   let mut redexes = vec![];
   for [root0, root1] in net_redexes {
-    let root0 = net_tree_to_hvmc_tree(inet, root0, &mut port_to_var_id);
-    let root1 = net_tree_to_hvmc_tree(inet, root1, &mut port_to_var_id);
+    let root0 = net_tree_to_hvmc_tree(inet, root0, &mut port_to_var_id, hvml_to_hvmc_name);
+    let root1 = net_tree_to_hvmc_tree(inet, root1, &mut port_to_var_id, hvml_to_hvmc_name);
     redexes.push((root0, root1));
   }
-  Ok(Net { root, redexes })
+  Ok(Net { root, rdex: redexes })
 }
 
-fn net_tree_to_hvmc_tree(inet: &INet, tree_root: NodeId, port_to_var_id: &mut HashMap<Port, VarId>) -> Tree {
+fn net_tree_to_hvmc_tree(
+  inet: &INet,
+  tree_root: NodeId,
+  port_to_var_id: &mut HashMap<Port, VarId>,
+  hvml_to_hvmc_name: &HashMap<Name, hvmc::run::Val>,
+) -> Tree {
   match &inet.node(tree_root).kind {
     NodeKind::Era => Tree::Era,
-    NodeKind::Con { lab: None } => Tree::Ctr {
-      lab: 0,
-      lft: Box::new(var_or_subtree(inet, Port(tree_root, 1), port_to_var_id)),
-      rgt: Box::new(var_or_subtree(inet, Port(tree_root, 2), port_to_var_id)),
+    NodeKind::Con { lab: None } => Tree::Con {
+      lft: Box::new(var_or_subtree(inet, Port(tree_root, 1), port_to_var_id, hvml_to_hvmc_name)),
+      rgt: Box::new(var_or_subtree(inet, Port(tree_root, 2), port_to_var_id, hvml_to_hvmc_name)),
     },
-    NodeKind::Tup => Tree::Ctr {
-      lab: 1,
-      lft: Box::new(var_or_subtree(inet, Port(tree_root, 1), port_to_var_id)),
-      rgt: Box::new(var_or_subtree(inet, Port(tree_root, 2), port_to_var_id)),
+    NodeKind::Tup => Tree::Tup {
+      lft: Box::new(var_or_subtree(inet, Port(tree_root, 1), port_to_var_id, hvml_to_hvmc_name)),
+      rgt: Box::new(var_or_subtree(inet, Port(tree_root, 2), port_to_var_id, hvml_to_hvmc_name)),
     },
-    NodeKind::Con { lab: Some(lab) } => Tree::Ctr {
+    NodeKind::Con { lab: Some(lab) } => Tree::Dup {
       #[allow(clippy::identity_op)]
-      lab: (*lab as u16 + 1) << 1 | 0,
-      lft: Box::new(var_or_subtree(inet, Port(tree_root, 1), port_to_var_id)),
-      rgt: Box::new(var_or_subtree(inet, Port(tree_root, 2), port_to_var_id)),
+      lab: (*lab + 1) << 1 | 0,
+      lft: Box::new(var_or_subtree(inet, Port(tree_root, 1), port_to_var_id, hvml_to_hvmc_name)),
+      rgt: Box::new(var_or_subtree(inet, Port(tree_root, 2), port_to_var_id, hvml_to_hvmc_name)),
     },
-    NodeKind::Dup { lab } => Tree::Ctr {
-      lab: (*lab as u16 + 1) << 1 | 1,
-      lft: Box::new(var_or_subtree(inet, Port(tree_root, 1), port_to_var_id)),
-      rgt: Box::new(var_or_subtree(inet, Port(tree_root, 2), port_to_var_id)),
+    NodeKind::Dup { lab } => Tree::Dup {
+      lab: (*lab + 1) << 1 | 1,
+      lft: Box::new(var_or_subtree(inet, Port(tree_root, 1), port_to_var_id, hvml_to_hvmc_name)),
+      rgt: Box::new(var_or_subtree(inet, Port(tree_root, 2), port_to_var_id, hvml_to_hvmc_name)),
     },
-    NodeKind::Ref { def_name } => Tree::Ref { nam: def_name.to_string() },
+    NodeKind::Ref { def_name } => Tree::Ref { nam: hvml_to_hvmc_name[def_name] },
     NodeKind::Num { val } => Tree::Num { val: *val },
-    NodeKind::Op2 { opr } => Tree::Op {
-      op: *opr,
-      rhs: Box::new(var_or_subtree(inet, Port(tree_root, 1), port_to_var_id)),
-      out: Box::new(var_or_subtree(inet, Port(tree_root, 2), port_to_var_id)),
+    NodeKind::Op2 { opr } => Tree::Op2 {
+      opr: *opr,
+      lft: Box::new(var_or_subtree(inet, Port(tree_root, 1), port_to_var_id, hvml_to_hvmc_name)),
+      rgt: Box::new(var_or_subtree(inet, Port(tree_root, 2), port_to_var_id, hvml_to_hvmc_name)),
     },
     NodeKind::Mat => Tree::Mat {
-      sel: Box::new(var_or_subtree(inet, Port(tree_root, 1), port_to_var_id)),
-      ret: Box::new(var_or_subtree(inet, Port(tree_root, 2), port_to_var_id)),
+      sel: Box::new(var_or_subtree(inet, Port(tree_root, 1), port_to_var_id, hvml_to_hvmc_name)),
+      ret: Box::new(var_or_subtree(inet, Port(tree_root, 2), port_to_var_id, hvml_to_hvmc_name)),
     },
     NodeKind::Rot => unreachable!(),
   }
 }
 
-fn var_or_subtree(inet: &INet, src_port: Port, port_to_var_id: &mut HashMap<Port, VarId>) -> Tree {
+fn var_or_subtree(
+  inet: &INet,
+  src_port: Port,
+  port_to_var_id: &mut HashMap<Port, VarId>,
+  hvml_to_hvmc_name: &HashMap<Name, hvmc::run::Val>,
+) -> Tree {
   let dst_port = inet.enter_port(src_port);
   if dst_port.slot() == 0 {
     // Subtree
-    net_tree_to_hvmc_tree(inet, dst_port.node(), port_to_var_id)
+    net_tree_to_hvmc_tree(inet, dst_port.node(), port_to_var_id, hvml_to_hvmc_name)
   } else {
     // Var
     if let Some(&var_id) = port_to_var_id.get(&src_port) {

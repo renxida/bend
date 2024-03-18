@@ -3,6 +3,7 @@ pub mod net_to_hvmc;
 
 use crate::term::Name;
 pub type HvmlLab = u32;
+use hvmc::run::Lab;
 use NodeKind::*;
 
 #[derive(Debug, Clone)]
@@ -46,7 +47,7 @@ pub enum NodeKind {
   },
   /// Numeric operations
   Op2 {
-    opr: hvmc::ops::Op,
+    opr: Lab,
   },
   /// Pattern matching on numbers
   Mat,

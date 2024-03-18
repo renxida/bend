@@ -2,21 +2,16 @@
 #![feature(let_chains)]
 
 use diagnostics::{DiagnosticOrigin, Diagnostics, DiagnosticsConfig, Severity};
-use hvmc::{
-  ast::{self, Net},
-  dispatch_dyn_net,
-  host::Host,
-  run::{DynNet, Heap, Rewrites},
-  stdlib::LogDef,
-};
-use hvmc_net::{mutual_recursion, prune::prune_defs};
+use hvmc::run::Rewrites;
+use hvmc_net::{pre_reduce::pre_reduce_book, prune::prune_defs};
 use net::{hvmc_to_net::hvmc_to_net, net_to_hvmc::nets_to_hvmc};
-use std::{
-  str::FromStr,
-  sync::{Arc, Mutex},
-  time::Instant,
+use std::time::Instant;
+use term::{
+  book_to_nets,
+  net_to_term::net_to_term,
+  term_to_net::{HvmcNames, Labels},
+  AdtEncoding, Book, Ctx, Term,
 };
-use term::{book_to_nets, net_to_term::net_to_term, term_to_net::Labels, AdtEncoding, Book, Ctx, Term};
 
 pub mod diagnostics;
 pub mod hvmc_net;
@@ -27,55 +22,6 @@ pub use term::load_book::load_file_to_book;
 
 pub const ENTRY_POINT: &str = "main";
 pub const HVM1_ENTRY_POINT: &str = "Main";
-
-/// These are the names of builtin defs that are not in the hvm-lang book, but
-/// are present in the hvm-core book. They are implemented using Rust code by
-/// [`create_host`] and they can not be rewritten as hvm-lang functions.
-pub const CORE_BUILTINS: [&str; 3] = ["HVM.log", "HVM.black_box", "HVM.print"];
-
-/// Creates a host with the hvm-core primitive definitions built-in.
-/// This needs the book as an Arc because the closure that logs
-/// data needs access to the book.
-pub fn create_host(book: Arc<Book>, labels: Arc<Labels>, adt_encoding: AdtEncoding) -> Arc<Mutex<Host>> {
-  let host = Arc::new(Mutex::new(Host::default()));
-  host.lock().unwrap().insert_def(
-    "HVM.log",
-    hvmc::host::DefRef::Owned(Box::new(LogDef::new({
-      let host = host.clone();
-      let book = book.clone();
-      let labels = labels.clone();
-      move |wire| {
-        let host = host.lock().unwrap();
-        let tree = host.readback_tree(&wire);
-        let net = hvmc::ast::Net { root: tree, redexes: vec![] };
-        let (term, errs) = readback_hvmc(&net, &book, &labels, false, adt_encoding);
-        eprint!("{errs}");
-        println!("{term}");
-      }
-    }))),
-  );
-  host.lock().unwrap().insert_def(
-    "HVM.print",
-    hvmc::host::DefRef::Owned(Box::new(LogDef::new({
-      let host = host.clone();
-      let book = book.clone();
-      let labels = labels.clone();
-      move |wire| {
-        let host = host.lock().unwrap();
-        let tree = host.readback_tree(&wire);
-        let net = hvmc::ast::Net { root: tree, redexes: vec![] };
-        let (term, _errs) = readback_hvmc(&net, &book, &labels, false, adt_encoding);
-        if let Term::Str { val } = &term {
-          println!("{val}");
-        }
-      }
-    }))),
-  );
-  let book = ast::Book::from_str("@HVM.black_box = (x x)").unwrap();
-  host.lock().unwrap().insert_book(&book);
-
-  host
-}
 
 pub fn check_book(book: &mut Book) -> Result<(), Diagnostics> {
   // TODO: Do the checks without having to do full compilation
@@ -91,19 +37,22 @@ pub fn compile_book(
   args: Option<Vec<Term>>,
 ) -> Result<CompileResult, Diagnostics> {
   let mut diagnostics = desugar_book(book, opts, diagnostics_cfg, args)?;
-  let (nets, labels) = book_to_nets(book);
+  let (nets, hvmc_names, labels) = book_to_nets(book);
 
-  let mut core_book = nets_to_hvmc(nets, &mut diagnostics)?;
+  let mut core_book = nets_to_hvmc(nets, &hvmc_names.hvml_to_hvmc, &mut diagnostics)?;
 
   if opts.pre_reduce {
-    core_book.pre_reduce(&|x| x == book.hvmc_entrypoint(), 1 << 24, 100_000)?;
+    // TODO: always cross refs
+    pre_reduce_book(&mut core_book, true, book.hvmc_entrypoint().to_string())?;
   }
   if opts.prune {
     prune_defs(&mut core_book, book.hvmc_entrypoint().to_string());
   }
-  mutual_recursion::check_cycles(&core_book, &mut diagnostics)?;
 
-  Ok(CompileResult { core_book, labels, diagnostics })
+  // TODO: Broken in this branch
+  //mutual_recursion::check_cycles(&core_book, &mut diagnostics)?;
+
+  Ok(CompileResult { core_book, labels, hvmc_names, diagnostics })
 }
 
 pub fn desugar_book(
@@ -207,7 +156,7 @@ pub fn run_book(
   diagnostics_cfg: DiagnosticsConfig,
   args: Option<Vec<Term>>,
 ) -> Result<(Term, RunInfo), Diagnostics> {
-  let CompileResult { core_book, labels, diagnostics } =
+  let CompileResult { core_book, labels, hvmc_names, diagnostics } =
     compile_book(&mut book, compile_opts, diagnostics_cfg, args)?;
 
   // TODO: Printing should be taken care by the cli module, but we'd
@@ -215,21 +164,13 @@ pub fn run_book(
   // cancel the run if a problem is detected.
   eprint!("{diagnostics}");
 
-  // Turn the book into an Arc so that we can use it for logging, debugging, etc.
-  // from anywhere else in the program
-  // This "freezes" the book and prevents further modification.
-  let book = Arc::new(book);
-  let labels = Arc::new(labels);
-
   // Run
-  let debug_hook = run_opts.debug_hook(&book, &labels);
-  let host = create_host(book.clone(), labels.clone(), compile_opts.adt_encoding);
-  host.lock().unwrap().insert_book(&core_book);
+  let debug_hook = run_opts.debug_hook(&book, &labels, &hvmc_names);
 
-  let (res_lnet, stats) = run_compiled(host, max_memory, run_opts, debug_hook, book.hvmc_entrypoint());
+  let (res_lnet, stats) = run_compiled(&core_book, max_memory, run_opts, debug_hook, book.hvmc_entrypoint());
 
   let (res_term, diagnostics) =
-    readback_hvmc(&res_lnet, &book, &labels, run_opts.linear, compile_opts.adt_encoding);
+    readback_hvmc(&res_lnet, &book, &labels, &hvmc_names, run_opts.linear, compile_opts.adt_encoding);
 
   let info = RunInfo { stats, diagnostics, net: res_lnet, book, labels };
   Ok((res_term, info))
@@ -239,28 +180,30 @@ pub fn run_book(
 pub fn count_nodes<'l>(net: &'l hvmc::ast::Net) -> usize {
   let mut visit: Vec<&'l hvmc::ast::Tree> = vec![&net.root];
   let mut count = 0usize;
-  for (l, r) in &net.redexes {
+  for (l, r) in &net.rdex {
     visit.push(l);
     visit.push(r);
   }
   while let Some(tree) = visit.pop() {
     match tree {
-      ast::Tree::Ctr { lft, rgt, .. } => {
+      hvmc::ast::Tree::Con { lft, rgt, .. }
+      | hvmc::ast::Tree::Tup { lft, rgt, .. }
+      | hvmc::ast::Tree::Op2 { lft, rgt, .. }
+      | hvmc::ast::Tree::Dup { lft, rgt, .. } => {
         count += 1;
         visit.push(lft);
         visit.push(rgt);
       }
-      ast::Tree::Op { rhs, out, .. } => {
-        count += 1;
-        visit.push(rhs);
-        visit.push(out);
-      }
-      ast::Tree::Mat { sel, ret } => {
+      hvmc::ast::Tree::Mat { sel, ret } => {
         count += 1;
         visit.push(sel);
         visit.push(ret);
       }
-      ast::Tree::Var { .. } => (),
+      hvmc::ast::Tree::Op1 { rgt, .. } => {
+        count += 1;
+        visit.push(rgt);
+      }
+      hvmc::ast::Tree::Var { .. } => (),
       _ => {
         count += 1;
       }
@@ -270,73 +213,51 @@ pub fn count_nodes<'l>(net: &'l hvmc::ast::Net) -> usize {
 }
 
 pub fn run_compiled(
-  host: Arc<Mutex<Host>>,
+  book: &hvmc::ast::Book,
   mem_size: usize,
   run_opts: RunOpts,
-  hook: Option<impl FnMut(&Net)>,
+  hook: Option<impl FnMut(&hvmc::ast::Net)>,
   entrypoint: &str,
-) -> (Net, RunStats) {
-  let heap = Heap::new_bytes(mem_size);
-  let mut root = DynNet::new(&heap, run_opts.lazy_mode);
-  let max_rwts = run_opts.max_rewrites.map(|x| x.clamp(usize::MIN, usize::MAX));
-  // Expect won't be reached because there's
-  // a pass that checks this.
-  dispatch_dyn_net!(&mut root => {
-    root.boot(host.lock().unwrap().defs.get(entrypoint).expect("No main function."));
+) -> (hvmc::ast::Net, RunStats) {
+  if run_opts.max_rewrites.is_some() {
+    todo!("Rewrite limit not supported in this branch");
+  }
 
-    let start_time = Instant::now();
+  let runtime_book = hvmc::ast::book_to_runtime(book);
+  let root = &mut hvmc::run::Net::init(mem_size, run_opts.lazy_mode, entrypoint);
 
-    if let Some(mut hook) = hook {
-      while !root.redexes.is_empty() {
-        let readback = host.lock().unwrap().readback(root);
-        hook(&readback);
-        root.reduce(1);
-      }
-    } else if let Some(mut max_rwts) = max_rwts {
-      if run_opts.lazy_mode {
-        panic!("Lazy mode does not yet support rewrite limit");
-      }
-      if !run_opts.single_core {
-        panic!("Parallel mode does not yet support rewrite limit");
-      }
-      root.expand();
-      while !root.redexes.is_empty() {
-        let old_rwts = root.rwts.total();
-        root.reduce(max_rwts);
-        let delta_rwts = root.rwts.total() - old_rwts;
-        if (max_rwts as u64) < delta_rwts {
-          eprintln!("Warning: Exceeded max rwts");
-          break;
-        }
-        max_rwts -= delta_rwts as usize;
-        root.expand();
-      }
-    } else if !run_opts.single_core {
-      root.parallel_normal();
-    } else {
-      root.normal();
+  let start_time = Instant::now();
+
+  if let Some(mut hook) = hook {
+    expand(root, &runtime_book);
+    while !rdex(root).is_empty() {
+      hook(&net_from_runtime(root));
+      reduce(root, &runtime_book, 1);
+      expand(root, &runtime_book);
     }
-    let elapsed = start_time.elapsed().as_secs_f64();
+  } else if run_opts.single_core {
+    root.normal(&runtime_book);
+  } else {
+    root.parallel_normal(&runtime_book);
+  }
 
+  let elapsed = start_time.elapsed().as_secs_f64();
 
-    let net = host.lock().unwrap().readback(root);
-
-    // TODO I don't quite understand this code
-    // How would it be implemented in the new version?
-    let stats = RunStats { rewrites: root.rwts, used: count_nodes(&net), run_time: elapsed };
-    (net, stats)
-  })
+  let net = net_from_runtime(root);
+  let stats = RunStats { rewrites: root.get_rewrites(), used: count_nodes(&net), run_time: elapsed };
+  (net, stats)
 }
 
 pub fn readback_hvmc(
-  net: &Net,
-  book: &Arc<Book>,
-  labels: &Arc<Labels>,
+  net: &hvmc::ast::Net,
+  book: &Book,
+  labels: &Labels,
+  hvmc_names: &HvmcNames,
   linear: bool,
   adt_encoding: AdtEncoding,
 ) -> (Term, Diagnostics) {
   let mut diags = Diagnostics::default();
-  let net = hvmc_to_net(net);
+  let net = hvmc_to_net(net, &hvmc_names.hvmc_to_hvml);
   let mut term = net_to_term(&net, book, labels, linear, &mut diags);
 
   let resugar_errs = term.resugar_adts(book, adt_encoding);
@@ -347,6 +268,27 @@ pub fn readback_hvmc(
   }
 
   (term, diags)
+}
+
+trait Init {
+  fn init(mem_size: usize, lazy: bool, entrypoint: &str) -> Self;
+}
+
+impl Init for hvmc::run::Net {
+  // same code from Net::new but it receives the entrypoint
+  fn init(size: usize, lazy: bool, entrypoint: &str) -> Self {
+    if lazy {
+      let mem = Box::leak(hvmc::run::Heap::<true>::init(size)) as *mut _;
+      let net = hvmc::run::NetFields::<true>::new(unsafe { &*mem });
+      net.boot(hvmc::ast::name_to_val(entrypoint));
+      hvmc::run::Net::Lazy(hvmc::run::StaticNet { mem, net })
+    } else {
+      let mem = Box::leak(hvmc::run::Heap::<false>::init(size)) as *mut _;
+      let net = hvmc::run::NetFields::<false>::new(unsafe { &*mem });
+      net.boot(hvmc::ast::name_to_val(entrypoint));
+      hvmc::run::Net::Eager(hvmc::run::StaticNet { mem, net })
+    }
+  }
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -364,10 +306,15 @@ impl RunOpts {
     Self { lazy_mode: true, single_core: true, ..Self::default() }
   }
 
-  fn debug_hook<'a>(&'a self, book: &'a Book, labels: &'a Labels) -> Option<impl FnMut(&Net) + 'a> {
+  fn debug_hook<'a>(
+    &'a self,
+    book: &'a Book,
+    labels: &'a Labels,
+    hvmc_names: &'a HvmcNames,
+  ) -> Option<impl FnMut(&hvmc::ast::Net) + 'a> {
     self.debug.then_some({
       |net: &_| {
-        let net = hvmc_to_net(net);
+        let net = hvmc_to_net(net, &hvmc_names.hvmc_to_hvml);
         let mut diags = Diagnostics::default();
         let res_term = net_to_term(&net, book, labels, self.linear, &mut diags);
         eprint!("{diags}");
@@ -491,18 +438,61 @@ pub struct CompileResult {
   pub diagnostics: Diagnostics,
   pub core_book: hvmc::ast::Book,
   pub labels: Labels,
+  pub hvmc_names: HvmcNames,
 }
 
 pub struct RunInfo {
   pub stats: RunStats,
   pub diagnostics: Diagnostics,
-  pub net: Net,
-  pub book: Arc<Book>,
-  pub labels: Arc<Labels>,
+  pub net: hvmc::ast::Net,
+  pub book: Book,
+  pub labels: Labels,
 }
 
 pub struct RunStats {
   pub rewrites: Rewrites,
   pub used: usize,
   pub run_time: f64,
+}
+
+fn expand(net: &mut hvmc::run::Net, book: &hvmc::run::Book) {
+  match net {
+    hvmc::run::Net::Eager(net) => net.net.expand(book),
+    _ => unreachable!(),
+  }
+}
+
+fn reduce(net: &mut hvmc::run::Net, book: &hvmc::run::Book, limit: usize) -> usize {
+  match net {
+    hvmc::run::Net::Eager(net) => net.net.reduce(book, limit),
+    _ => unreachable!(),
+  }
+}
+
+fn rdex(net: &mut hvmc::run::Net) -> &mut Vec<(hvmc::run::Ptr, hvmc::run::Ptr)> {
+  match net {
+    hvmc::run::Net::Lazy(net) => &mut net.net.rdex,
+    hvmc::run::Net::Eager(net) => &mut net.net.rdex,
+  }
+}
+
+fn net_from_runtime(net: &hvmc::run::Net) -> hvmc::ast::Net {
+  match net {
+    hvmc::run::Net::Lazy(net) => hvmc::ast::net_from_runtime(&net.net),
+    hvmc::run::Net::Eager(net) => hvmc::ast::net_from_runtime(&net.net),
+  }
+}
+
+fn net_to_runtime(rt_net: &mut hvmc::run::Net, net: &hvmc::ast::Net) {
+  match rt_net {
+    hvmc::run::Net::Lazy(rt_net) => hvmc::ast::net_to_runtime(&mut rt_net.net, net),
+    hvmc::run::Net::Eager(rt_net) => hvmc::ast::net_to_runtime(&mut rt_net.net, net),
+  }
+}
+
+fn runtime_net_to_runtime_def(net: &hvmc::run::Net) -> hvmc::run::Def {
+  match net {
+    hvmc::run::Net::Lazy(net) => hvmc::ast::runtime_net_to_runtime_def(&net.net),
+    hvmc::run::Net::Eager(net) => hvmc::ast::runtime_net_to_runtime_def(&net.net),
+  }
 }

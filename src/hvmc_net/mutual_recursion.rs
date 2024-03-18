@@ -1,9 +1,12 @@
 use crate::diagnostics::{Diagnostics, WarningType, ERR_INDENT_SIZE};
-use hvmc::ast::{Book, Tree};
+use hvmc::{
+  ast::{name_to_val, val_to_name, Book, Tree},
+  run::Val,
+};
 use indexmap::{IndexMap, IndexSet};
 use std::fmt::Debug;
 
-type Ref = String;
+type Ref = Val;
 type Stack<T> = Vec<T>;
 type RefSet = IndexSet<Ref>;
 
@@ -38,7 +41,8 @@ fn pretty_print_cycles(cycles: &[Vec<Ref>]) -> String {
     .iter()
     .enumerate()
     .map(|(i, cycle)| {
-      let cycle_str = cycle.iter().chain(cycle.first()).cloned().collect::<Vec<_>>().join(" -> ");
+      let cycle_str =
+        cycle.iter().chain(cycle.first()).cloned().map(val_to_name).collect::<Vec<_>>().join(" -> ");
       format!("{:ERR_INDENT_SIZE$}Cycle {}: {}", "", 1 + i, cycle_str)
     })
     .collect::<Vec<String>>()
@@ -75,9 +79,9 @@ impl Graph {
     }
 
     // If the ref has not been visited yet, mark it as visited.
-    if visited.insert(r#ref.clone()) {
+    if visited.insert(*r#ref) {
       // Add the current ref to the stack to keep track of the path.
-      stack.push(r#ref.clone());
+      stack.push(*r#ref);
 
       // Get the dependencies of the current ref.
       if let Some(dependencies) = self.get(r#ref) {
@@ -94,16 +98,17 @@ impl Graph {
 
 fn collect_refs(current: Ref, tree: &Tree, graph: &mut Graph) {
   match tree {
-    Tree::Ref { nam } => graph.add(current, nam.clone()),
-    Tree::Ctr { box lft, rgt, .. } => {
-      if let Tree::Ref { nam } = lft {
-        graph.add(current.clone(), nam.clone());
-      }
+    Tree::Ref { nam } => graph.add(current, *nam),
+    Tree::Tup { lft, rgt, .. }
+    | Tree::Dup { lft, rgt, .. }
+    | Tree::Op2 { lft, rgt, .. }
+    | Tree::Mat { sel: lft, ret: rgt }
+    | Tree::Con { lft, rgt, .. } => {
+      collect_refs(current, lft, graph);
       collect_refs(current, rgt, graph);
     }
-    Tree::Op { rhs: fst, out: snd, .. } | Tree::Mat { sel: fst, ret: snd } => {
-      collect_refs(current.clone(), fst, graph);
-      collect_refs(current, snd, graph);
+    Tree::Op1 { rgt, .. } => {
+      collect_refs(current, rgt, graph);
     }
     Tree::Era | Tree::Num { .. } | Tree::Var { .. } => (),
   }
@@ -115,11 +120,11 @@ impl From<&Book> for Graph {
 
     for (r#ref, net) in book.iter() {
       // Collect active refs from root.
-      collect_refs(r#ref.clone(), &net.root, &mut graph);
-      for (left, _) in net.redexes.iter() {
+      collect_refs(name_to_val(r#ref), &net.root, &mut graph);
+      for (left, _) in net.rdex.iter() {
         // If left is an active reference, add to the graph.
         if let Tree::Ref { nam } = left {
-          graph.add(r#ref.clone(), nam.clone());
+          graph.add(name_to_val(r#ref), *nam);
         }
       }
     }
@@ -134,7 +139,7 @@ impl Graph {
   }
 
   pub fn add(&mut self, r#ref: Ref, dependency: Ref) {
-    self.0.entry(r#ref).or_default().insert(dependency.clone());
+    self.0.entry(r#ref).or_default().insert(dependency);
     self.0.entry(dependency).or_default();
   }
 

@@ -4,13 +4,22 @@ use crate::{
     NodeKind::{self, *},
     Port, ROOT,
   },
-  term::{Book, Name, NumCtr, Op, Pattern, Tag, Term},
+  term::{num_to_name, Book, Name, NumCtr, Op, Pattern, Tag, Term},
 };
+use hvmc::{ast::name_to_val, run::Val};
 use std::collections::{hash_map::Entry, HashMap};
 
-pub fn book_to_nets(book: &Book) -> (HashMap<String, INet>, Labels) {
+#[derive(Debug, Default)]
+pub struct HvmcNames {
+  pub hvml_to_hvmc: HashMap<Name, Val>,
+  pub hvmc_to_hvml: HashMap<Val, Name>,
+}
+
+pub fn book_to_nets(book: &Book) -> (HashMap<String, INet>, HvmcNames, Labels) {
   let mut nets = HashMap::new();
   let mut labels = Labels::default();
+  let mut hvmc_names = HvmcNames::default();
+  let mut generated_count = 0;
 
   let main = book.entrypoint.as_ref().unwrap();
 
@@ -18,7 +27,15 @@ pub fn book_to_nets(book: &Book) -> (HashMap<String, INet>, Labels) {
     for rule in def.rules.iter() {
       let net = term_to_compat_net(&rule.body, &mut labels);
 
-      let name = if def.name == *main { book.hvmc_entrypoint().to_string() } else { def.name.0.to_string() };
+      let name = if def.name == *main {
+        book.hvmc_entrypoint().to_string()
+      } else {
+        def_name_to_hvmc_name(&def.name, main, &nets, &mut generated_count)
+      };
+
+      let val = name_to_val(&name);
+      hvmc_names.hvml_to_hvmc.insert(def.name.clone(), val);
+      hvmc_names.hvmc_to_hvml.insert(val, def.name.clone());
 
       nets.insert(name, net);
     }
@@ -27,7 +44,50 @@ pub fn book_to_nets(book: &Book) -> (HashMap<String, INet>, Labels) {
   labels.con.finish();
   labels.dup.finish();
 
-  (nets, labels)
+  (nets, hvmc_names, labels)
+}
+
+/// Converts rules names to unique names compatible with hvm-core:
+///   If the rule is compiler-generated: Convert the DefId value into a new name
+///   If not: Truncates the rule name into 4 chars
+/// Them checks if the given hashmap already contains the resulted name,
+/// if it does, falls back into converting its DefId and succeeding ones until a unique name is found.
+fn def_name_to_hvmc_name(
+  def_name: &Name,
+  entrypoint: &Name,
+  nets: &HashMap<String, INet>,
+  generated_count: &mut Val,
+) -> String {
+  fn truncate(s: &str, max_chars: usize) -> &str {
+    match s.char_indices().nth(max_chars) {
+      None => s,
+      Some((idx, _)) => &s[.. idx],
+    }
+  }
+
+  fn gen_unique_name(generated_count: &mut Val, nets: &HashMap<String, INet>) -> String {
+    let mut id = *generated_count;
+    *generated_count += 1;
+    loop {
+      let name = num_to_name(id);
+      if nets.contains_key(&name) {
+        id += 1;
+      } else {
+        return name;
+      }
+    }
+  }
+
+  if def_name.is_generated() {
+    gen_unique_name(generated_count, nets)
+  } else {
+    let name = truncate(def_name, 10);
+    if !(nets.contains_key(name) || entrypoint == name) {
+      name.to_owned()
+    } else {
+      gen_unique_name(generated_count, nets)
+    }
+  }
 }
 
 /// Converts an IC term into an IC net.
@@ -309,25 +369,24 @@ impl EncodeTermState<'_> {
 }
 
 impl Op {
-  pub fn to_hvmc_label(self) -> hvmc::ops::Op {
-    use hvmc::ops::Op as RtOp;
+  pub fn to_hvmc_label(self) -> hvmc::run::Lab {
     match self {
-      Op::Add => RtOp::Add,
-      Op::Sub => RtOp::Sub,
-      Op::Mul => RtOp::Mul,
-      Op::Div => RtOp::Div,
-      Op::Mod => RtOp::Mod,
-      Op::Eq => RtOp::Eq,
-      Op::Ne => RtOp::Ne,
-      Op::Lt => RtOp::Lt,
-      Op::Gt => RtOp::Gt,
-      Op::Lte => RtOp::Lte,
-      Op::Gte => RtOp::Gte,
-      Op::And => RtOp::And,
-      Op::Or => RtOp::Or,
-      Op::Xor => RtOp::Xor,
-      Op::Shl => RtOp::Shl,
-      Op::Shr => RtOp::Shr,
+      Op::Add => hvmc::run::ADD,
+      Op::Sub => hvmc::run::SUB,
+      Op::Mul => hvmc::run::MUL,
+      Op::Div => hvmc::run::DIV,
+      Op::Mod => hvmc::run::MOD,
+      Op::Eq => hvmc::run::EQ,
+      Op::Ne => hvmc::run::NE,
+      Op::Lt => hvmc::run::LT,
+      Op::Gt => hvmc::run::GT,
+      Op::Lte => hvmc::run::LTE,
+      Op::Gte => hvmc::run::GTE,
+      Op::And => hvmc::run::AND,
+      Op::Or => hvmc::run::OR,
+      Op::Xor => hvmc::run::XOR,
+      Op::Shl => hvmc::run::LSH,
+      Op::Shr => hvmc::run::RSH,
     }
   }
 }

@@ -3,11 +3,11 @@ source: tests/golden_tests.rs
 input_file: tests/golden_tests/compile_file_o_all/adt_option_and.hvm
 ---
 @None = {2 * {2 a a}}
-@Option.and = ({2 @Option.and$C2 {2 @Option.and$C3_$_Option.and$C1 a}} a)
-@Option.and$C0 = {2 a (b {2 {2 [b a] c} {2 * c}})}
-@Option.and$C2 = {2 a ({2 @Option.and$C0 {2 @Option.and$C3_$_Option.and$C1 (a b)}} b)}
-@Option.and$C3_$_Option.and$C1 = (* @None)
+@Option.and = ({2 @b {2 @a a}} a)
 @Some = (a {2 {2 a b} {2 * b}})
+@a = (* @None)
+@b = {2 a ({2 @c {2 @a (a b)}} b)}
+@c = {2 a (b {2 {2 [b a] c} {2 * c}})}
 @main = a
 & @Option.and ~ (b (c a))
 & @Some ~ (#3 c)

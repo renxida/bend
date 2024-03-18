@@ -16,7 +16,6 @@ use std::{
   fmt::Write,
   io::Read,
   path::{Path, PathBuf},
-  str::FromStr,
 };
 use stdext::function_name;
 use walkdir::WalkDir;
@@ -30,7 +29,7 @@ fn do_parse_term(code: &str) -> Result<Term, String> {
 }
 
 fn do_parse_net(code: &str) -> Result<hvmc::ast::Net, String> {
-  hvmc::ast::Net::from_str(code)
+  hvmc::ast::parse_net(&mut code.chars().peekable())
 }
 
 const TESTS_PATH: &str = "/tests/golden_tests/";
@@ -106,9 +105,9 @@ fn compile_term() {
     term.make_var_names_unique();
     term.linearize_vars();
     let compat_net = term_to_compat_net(&term, &mut Default::default());
-    let net = net_to_hvmc(&compat_net).map_err(|e| e.to_string_verbose(true))?;
+    let net = net_to_hvmc(&compat_net, &Default::default()).map_err(|e| e.to_string_verbose(true))?;
 
-    Ok(format!("{}", net))
+    Ok(hvmc::ast::show_net(&net))
   })
 }
 
@@ -118,7 +117,7 @@ fn compile_file_o_all() {
     let diagnostics_cfg = DiagnosticsConfig::new(Severity::Warning, true);
     let mut book = do_parse_book(code, path)?;
     let res = compile_book(&mut book, CompileOpts::heavy(), diagnostics_cfg, None)?;
-    Ok(format!("{}{}", res.diagnostics, res.core_book))
+    Ok(format!("{}{}", res.diagnostics, hvmc::ast::show_book(&res.core_book)))
   })
 }
 #[test]
@@ -127,7 +126,7 @@ fn compile_file() {
     let diagnostics_cfg = DiagnosticsConfig::new(Severity::Warning, true);
     let mut book = do_parse_book(code, path)?;
     let res = compile_book(&mut book, CompileOpts::light(), diagnostics_cfg, None)?;
-    Ok(format!("{}{}", res.diagnostics, res.core_book))
+    Ok(format!("{}{}", res.diagnostics, hvmc::ast::show_book(&res.core_book)))
   })
 }
 
@@ -152,7 +151,7 @@ fn run_file() {
   run_golden_test_dir_multiple(function_name!(), &[
     (&|_code, path| {
       let output = std::process::Command::new(env!("CARGO_BIN_EXE_hvml"))
-        .args(["run", path.to_str().unwrap(), "-Dall", "-Oall", "-L"])
+        .args(["run", path.to_str().unwrap(), "-Dall", "-Oall", "-L", "-m20M"])
         .output()
         .expect("Run process");
 
@@ -160,7 +159,7 @@ fn run_file() {
     }),
     (&|_code, path| {
       let output = std::process::Command::new(env!("CARGO_BIN_EXE_hvml"))
-        .args(["run", path.to_str().unwrap(), "-Dall", "-Oall"])
+        .args(["run", path.to_str().unwrap(), "-Dall", "-Oall", "-m20M"])
         .output()
         .expect("Run process");
 
@@ -193,7 +192,7 @@ fn readback_lnet() {
   run_golden_test_dir(function_name!(), &|code, _| {
     let net = do_parse_net(code)?;
     let book = Book::default();
-    let compat_net = hvmc_to_net(&net);
+    let compat_net = hvmc_to_net(&net, &Default::default());
     let mut diags = Diagnostics::default();
     let term = net_to_term(&compat_net, &book, &Labels::default(), false, &mut diags);
     Ok(format!("{}{}", diags, term))
@@ -308,7 +307,7 @@ fn compile_entrypoint() {
     let mut book = do_parse_book(code, path)?;
     book.entrypoint = Some(Name::from("foo"));
     let res = compile_book(&mut book, CompileOpts::light(), diagnostics_cfg, None)?;
-    Ok(format!("{}{}", res.diagnostics, res.core_book))
+    Ok(format!("{}{}", res.diagnostics, hvmc::ast::show_book(&res.core_book)))
   })
 }
 
@@ -352,6 +351,6 @@ fn mutual_recursion() {
     };
     let mut book = do_parse_book(code, path)?;
     let res = compile_book(&mut book, CompileOpts::light(), diagnostics_cfg, None)?;
-    Ok(format!("{}{}", res.diagnostics, res.core_book))
+    Ok(format!("{}{}", res.diagnostics, hvmc::ast::show_book(&res.core_book)))
   })
 }

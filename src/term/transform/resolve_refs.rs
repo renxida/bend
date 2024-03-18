@@ -1,7 +1,6 @@
 use crate::{
   diagnostics::{Diagnostics, ToStringVerbose},
   term::{Ctx, Name, Pattern, Term},
-  CORE_BUILTINS,
 };
 use std::collections::{HashMap, HashSet};
 
@@ -57,7 +56,7 @@ impl Term {
         }
 
         // If the variable is actually a reference to a function, swap the term.
-        if def_names.contains(nam) || CORE_BUILTINS.contains(&nam.0.as_ref()) {
+        if def_names.contains(nam) {
           *self = Term::r#ref(nam);
         }
       }

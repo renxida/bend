@@ -195,8 +195,7 @@ impl Reader<'_> {
           2 => {
             let fst = self.read_term(self.net.enter_port(Port(node, 0)));
             let snd = self.read_term(self.net.enter_port(Port(node, 1)));
-            let (opr, fst, snd) = if is_op_swapped(*opr) { (opr.swap(), snd, fst) } else { (*opr, fst, snd) };
-            Term::Opx { op: Op::from_hvmc_label(opr), fst: Box::new(fst), snd: Box::new(snd) }
+            Term::Opx { op: Op::from_hvmc_label(*opr), fst: Box::new(fst), snd: Box::new(snd) }
           }
           _ => {
             self.error(ReadbackError::InvalidNumericOp);
@@ -456,43 +455,27 @@ impl NameGen {
 }
 
 impl Op {
-  pub fn from_hvmc_label(value: hvmc::ops::Op) -> Op {
-    use hvmc::ops::Op as RtOp;
+  pub fn from_hvmc_label(value: hvmc::run::Lab) -> Op {
     match value {
-      RtOp::Add => Op::Add,
-      RtOp::Sub => Op::Sub,
-      RtOp::Mul => Op::Mul,
-      RtOp::Div => Op::Div,
-      RtOp::Mod => Op::Mod,
-      RtOp::Eq => Op::Eq,
-      RtOp::Ne => Op::Ne,
-      RtOp::Lt => Op::Lt,
-      RtOp::Gt => Op::Gt,
-      RtOp::Lte => Op::Lte,
-      RtOp::Gte => Op::Gte,
-      RtOp::And => Op::And,
-      RtOp::Or => Op::Or,
-      RtOp::Xor => Op::Xor,
-      RtOp::Shl => Op::Shl,
-      RtOp::Shr => Op::Shr,
-      RtOp::SubS => unreachable!(),
-      RtOp::DivS => unreachable!(),
-      RtOp::ModS => unreachable!(),
-      RtOp::ShlS => unreachable!(),
-      RtOp::ShrS => unreachable!(),
+      hvmc::run::ADD => Op::Add,
+      hvmc::run::SUB => Op::Sub,
+      hvmc::run::MUL => Op::Mul,
+      hvmc::run::DIV => Op::Div,
+      hvmc::run::MOD => Op::Mod,
+      hvmc::run::EQ => Op::Eq,
+      hvmc::run::NE => Op::Ne,
+      hvmc::run::LT => Op::Lt,
+      hvmc::run::GT => Op::Gt,
+      hvmc::run::LTE => Op::Lte,
+      hvmc::run::GTE => Op::Gte,
+      hvmc::run::AND => Op::And,
+      hvmc::run::OR => Op::Or,
+      hvmc::run::XOR => Op::Xor,
+      hvmc::run::LSH => Op::Shl,
+      hvmc::run::RSH => Op::Shr,
+      _ => unreachable!(),
     }
   }
-}
-
-fn is_op_swapped(op: hvmc::ops::Op) -> bool {
-  matches!(
-    op,
-    hvmc::ops::Op::ShlS
-      | hvmc::ops::Op::ShrS
-      | hvmc::ops::Op::SubS
-      | hvmc::ops::Op::DivS
-      | hvmc::ops::Op::ModS
-  )
 }
 
 #[derive(Debug, Clone, Copy)]

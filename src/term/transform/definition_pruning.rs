@@ -1,7 +1,6 @@
 use crate::{
   diagnostics::{ToStringVerbose, WarningType},
   term::{Adt, AdtEncoding, Book, Ctx, Name, Tag, Term, LIST, STRING},
-  CORE_BUILTINS,
 };
 use indexmap::IndexSet;
 use std::collections::{hash_map::Entry, HashMap};
@@ -134,9 +133,6 @@ impl Book {
   fn insert_used(&self, def_name: &Name, used: Used, uses: &mut Definitions, adt_encoding: AdtEncoding) {
     if let Entry::Vacant(e) = uses.entry(def_name.clone()) {
       e.insert(used);
-      if CORE_BUILTINS.contains(&def_name.0.as_ref()) {
-        return;
-      }
 
       // This needs to be done for each rule in case the pass it's ran from has not encoded the pattern match
       // E.g.: the `flatten_rules` golden test

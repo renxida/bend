@@ -3,25 +3,25 @@ source: tests/golden_tests.rs
 input_file: tests/golden_tests/compile_file_o_all/list_merge_sort.hvm
 ---
 @Cons = (a (b {4 {4 a {4 b c}} {4 * c}}))
-@If$C0 = (a (* a))
-@If$C1 = (* (a a))
-@Map = ({4 @Map$C0 {4 @Unpack$C3_$_MergePair$C4_$_Map$C1 a}} a)
-@Map$C0 = {4 a {4 {4 @Map$C0 {4 @Unpack$C3_$_MergePair$C4_$_Map$C1 (b c)}} ({5 (a d) b} {4 {4 d {4 c e}} {4 * e}})}}
-@Merge$C0 = {4 {7 a {7 b c}} {4 {9 d {4 @Merge$C0 {4 @Merge$C1 (e (f (g h)))}}} ({11 (i (a {2 @If$C0 {2 @If$C1 ({4 {4 j {4 k l}} {4 * l}} ({4 {4 c {4 h m}} {4 * m}} n))}})) {11 o e}} ({13 i {13 j f}} ({15 {4 @Merge$C2 {4 @Merge$C3 (o ({4 {4 b {4 d p}} {4 * p}} k))}} g} n)))}}
-@Merge$C1 = (* @Cons)
-@Merge$C2 = {4 a {4 b (c ({4 @Merge$C0 {4 @Merge$C1 (c (a (b d)))}} d))}}
-@Merge$C3 = (* (a a))
-@MergePair$C0 = {4 a {4 {4 @MergePair$C3 {4 @Unpack$C3_$_MergePair$C4_$_Map$C1 (b c)}} ({17 d b} ({4 @Merge$C2 {4 @Merge$C3 (d (a e))}} {4 {4 e {4 c f}} {4 * f}}))}}
-@MergePair$C1 = (a {4 {4 a {4 @Nil b}} {4 * b}})
-@MergePair$C2 = (* @MergePair$C1)
-@MergePair$C3 = {4 a {4 {4 @MergePair$C0 {4 @MergePair$C2 (b (a c))}} (b c)}}
+@Map = ({4 @h {4 @a a}} a)
 @Nil = {4 * {4 a a}}
 @Pure = (a {4 {4 a {4 @Nil b}} {4 * b}})
-@Unpack = (a ({4 @Unpack$C2 {4 @Unpack$C3_$_MergePair$C4_$_Map$C1 (a b)}} b))
-@Unpack$C0 = {4 a {4 {4 @MergePair$C3 {4 @Unpack$C3_$_MergePair$C4_$_Map$C1 (b {4 @Unpack$C0 {4 @Unpack$C1 (c (d e))}})}} ({3 c {17 f b}} ({4 @Merge$C2 {4 @Merge$C3 (f (a d))}} e))}}
-@Unpack$C1 = (* (a a))
-@Unpack$C2 = {4 a {4 {4 @Unpack$C0 {4 @Unpack$C1 (b (a c))}} (b c)}}
-@Unpack$C3_$_MergePair$C4_$_Map$C1 = (* @Nil)
+@Unpack = (a ({4 @b {4 @a (a b)}} b))
+@a = (* @Nil)
+@b = {4 a {4 {4 @d {4 @c (b (a c))}} (b c)}}
+@c = (* (a a))
+@d = {4 a {4 {4 @e {4 @a (b {4 @d {4 @c (c (d e))}})}} ({3 c {17 f b}} ({4 @l {4 @m (f (a d))}} e))}}
+@e = {4 a {4 {4 @n {4 @i (b (a c))}} (b c)}}
+@f = (a (* a))
+@g = (* (a a))
+@h = {4 a {4 {4 @h {4 @a (b c)}} ({5 (a d) b} {4 {4 d {4 c e}} {4 * e}})}}
+@i = (* @o)
+@j = {4 {7 a {7 b c}} {4 {9 d {4 @j {4 @k (e (f (g h)))}}} ({11 (i (a {2 @f {2 @g ({4 {4 j {4 k l}} {4 * l}} ({4 {4 c {4 h m}} {4 * m}} n))}})) {11 o e}} ({13 i {13 j f}} ({15 {4 @l {4 @m (o ({4 {4 b {4 d p}} {4 * p}} k))}} g} n)))}}
+@k = (* @Cons)
+@l = {4 a {4 b (c ({4 @j {4 @k (c (a (b d)))}} d))}}
+@m = (* (a a))
 @main = (a (b c))
 & @Unpack ~ (a (d c))
 & @Map ~ (b (@Pure d))
+@n = {4 a {4 {4 @e {4 @a (b c)}} ({17 d b} ({4 @l {4 @m (d (a e))}} {4 {4 e {4 c f}} {4 * f}}))}}
+@o = (a {4 {4 a {4 @Nil b}} {4 * b}})

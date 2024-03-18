@@ -26,19 +26,19 @@ In definition 'zero_var':
 In definition 'zero_var_succ':
   Definition is unused.
 
+@a = (?<(#0 (a a)) b> b)
+@b = (<+ #1 <- #1 a>> a)
+@c = (<+ #1 <- #1 a>> a)
+@d = (<+ #2 a> a)
 @main = #0
 @succ_var = (?<(#0 (a a)) b> b)
-@succ_var_zero = (?<(a @succ_var_zero$C0) b> b)
+@succ_var_z = (?<(a @d) b> b)
 & #0 ~ <+ #1 a>
-@succ_var_zero$C0 = (<+ #2 a> a)
 @succ_zero = (?<(#0 (a a)) b> b)
-@succ_zero_succ = (?<(#0 (a a)) b> b)
-@succ_zero_var = (?<(#0 (a a)) b> b)
+@succ_zero_ = (?<(#0 (a a)) b> b)
 @var_succ = (a a)
 @var_zero = (a a)
 @zero_succ = (?<(#0 (a a)) b> b)
-@zero_succ_var = (?<(#0 (a a)) b> b)
-@zero_var = (?<(#0 @zero_var$C0) a> a)
-@zero_var$C0 = (<+ #1 <- #1 a>> a)
-@zero_var_succ = (?<(#0 @zero_var_succ$C0) a> a)
-@zero_var_succ$C0 = (<+ #1 <- #1 a>> a)
+@zero_succ_ = (?<(#0 (a a)) b> b)
+@zero_var = (?<(#0 @c) a> a)
+@zero_var_s = (?<(#0 @b) a> a)

@@ -2,9 +2,9 @@
 source: tests/golden_tests.rs
 input_file: tests/golden_tests/compile_file_o_all/sum_predicates.hvm
 ---
+@a = (a (?<((b b) @b) (a c)> c))
+@b = (a (<+ a b> b))
+@c = (?<(#0 (a a)) b> b)
 @main = a
 & @sum_pred ~ (#8 (#5 a))
-@sum_pred = (?<(@sum_pred$C0 @sum_pred$C2) a> a)
-@sum_pred$C0 = (?<(#0 (a a)) b> b)
-@sum_pred$C1 = (a (<+ a b> b))
-@sum_pred$C2 = (a (?<((b b) @sum_pred$C1) (a c)> c))
+@sum_pred = (?<(@c @a) a> a)

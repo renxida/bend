@@ -266,7 +266,7 @@ fn execute_cli_mode(mut cli: Cli) -> Result<(), Diagnostics> {
       let compile_res = compile_book(&mut book, opts, diagnostics_cfg, None)?;
 
       eprint!("{}", compile_res.diagnostics);
-      println!("{}", compile_res.core_book);
+      println!("{}", hvmc::ast::show_book(&compile_res.core_book));
     }
     Mode::Desugar { path, comp_opts, warn_opts, lazy_mode } => {
       let diagnostics_cfg = set_warning_cfg_from_cli(
@@ -327,7 +327,7 @@ fn execute_cli_mode(mut cli: Cli) -> Result<(), Diagnostics> {
       let size = stats.used;
 
       if cli.verbose {
-        println!("{net}");
+        println!("{}", hvmc::ast::show_net(&net));
       }
 
       eprint!("{diagnostics}");

@@ -3,7 +3,7 @@ source: tests/golden_tests.rs
 input_file: tests/golden_tests/run_file/lam_op2_nested.hvm
 ---
 Lazy mode:
-λa (+ (* a a) (+ (+ a 2) 3))
+λa (+ (* a a) (+ (+ 2 a) 3))
 
 Strict mode:
-λa (+ (* a a) (+ (+ a 2) 3))
+λa (+ (* a a) (+ (+ 2 a) 3))
