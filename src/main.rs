@@ -7,6 +7,8 @@ use bend::{
 use clap::{Args, CommandFactory, Parser, Subcommand};
 use std::path::{Path, PathBuf};
 
+mod manager;
+
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Cli {
@@ -102,6 +104,10 @@ enum Mode {
     #[arg(help = "Path to the input file")]
     path: PathBuf,
   },
+  Manager {
+    #[command(subcommand)]
+    command: manager::PackageCmd,
+  },
 }
 
 #[derive(Args, Clone, Debug)]
@@ -113,9 +119,9 @@ struct RunArgs {
   print_stats: bool,
 }
 
-#[derive(Args, Debug, Clone)]
+#[derive(Args, Debug, Clone, Default)]
 #[group(multiple = true)]
-struct CliWarnOpts {
+pub struct CliWarnOpts {
   #[arg(
     short = 'W',
     long = "warn",
@@ -233,14 +239,7 @@ fn execute_cli_mode(mut cli: Cli) -> Result<(), Diagnostics> {
   };
 
   match cli.mode {
-    Mode::Check { comp_opts, warn_opts, path } => {
-      let diagnostics_cfg = set_warning_cfg_from_cli(DiagnosticsConfig::default(), warn_opts);
-      let compile_opts = compile_opts_from_cli(&comp_opts);
-
-      let mut book = load_book(&path)?;
-      let diagnostics = check_book(&mut book, diagnostics_cfg, compile_opts)?;
-      eprintln!("{}", diagnostics);
-    }
+    Mode::Check { comp_opts, warn_opts, path } => check(warn_opts, comp_opts, load_book, &path)?,
 
     Mode::Compile { path, comp_opts, warn_opts } => {
       let diagnostics_cfg = set_warning_cfg_from_cli(DiagnosticsConfig::default(), warn_opts);
@@ -294,7 +293,26 @@ fn execute_cli_mode(mut cli: Cli) -> Result<(), Diagnostics> {
         println!("{stats}");
       }
     }
+    Mode::Manager { command } => match manager::handle_package_cmd(command) {
+      Ok(_) => todo!(),
+      Err(_) => todo!(),
+    },
   };
+  Ok(())
+}
+
+pub fn check(
+  warn_opts: CliWarnOpts,
+  comp_opts: Vec<OptArgs>,
+  load_book: impl FnOnce(&Path) -> Result<Book, Diagnostics>,
+  path: &Path,
+) -> Result<(), Diagnostics> {
+  let diagnostics_cfg = set_warning_cfg_from_cli(DiagnosticsConfig::default(), warn_opts);
+  let compile_opts = compile_opts_from_cli(&comp_opts);
+
+  let mut book = load_book(path)?;
+  let diagnostics = check_book(&mut book, diagnostics_cfg, compile_opts)?;
+  eprintln!("{}", diagnostics);
   Ok(())
 }
 
